@@ -1,13 +1,26 @@
 import { useCallback, useState } from 'react'
 import { ProjectSession, type BinderNode } from './app/session'
 import { exportZip } from './app/zipio'
+import { writeProjectDelta } from './app/fsio'
 import OpenScreen from './ui/OpenScreen'
 import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
 import AddDocumentDialog from './ui/AddDocumentDialog'
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function App() {
   const [session, setSession] = useState<ProjectSession | null>(null)
+  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
+  const [backupDone, setBackupDone] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [selected, setSelected] = useState<BinderNode | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
@@ -19,8 +32,11 @@ export default function App() {
   if (!session) {
     return (
       <OpenScreen
-        onOpen={(s) => {
+        onOpen={(s, handle) => {
           setSession(s)
+          setDirHandle(handle)
+          setBackupDone(false)
+          setSaveStatus(null)
           setSelected(null)
         }}
       />
@@ -66,27 +82,56 @@ export default function App() {
   const doExport = async () => {
     setExporting(true)
     try {
-      const files = session.exportFiles()
-      const blob = await exportZip(files, `${session.projectName}.scriv`)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${session.projectName}-edited.scriv.zip`
-      a.click()
-      URL.revokeObjectURL(url)
+      const blob = await exportZip(session.exportFiles(), `${session.projectName}.scriv`)
+      downloadBlob(blob, `${session.projectName}-edited.scriv.zip`)
     } finally {
       setExporting(false)
+    }
+  }
+
+  const saveToFolder = async () => {
+    if (!dirHandle || !session.isDirty()) return
+    if (
+      !window.confirm(
+        'Save changes directly into the project folder?\n\n' +
+          'Make sure the project is CLOSED in Scrivener first. ' +
+          (backupDone
+            ? ''
+            : 'A backup zip of the original project will be downloaded before anything is written.'),
+      )
+    ) {
+      return
+    }
+    setSaveStatus('Saving…')
+    try {
+      if (!backupDone) {
+        const backup = await exportZip(
+          session.exportOriginalFiles(),
+          `${session.projectName}.scriv`,
+        )
+        downloadBlob(backup, `${session.projectName}-backup.scriv.zip`)
+        setBackupDone(true)
+      }
+      const { writes, deletes } = session.exportDelta()
+      await writeProjectDelta(dirHandle, writes, deletes)
+      session.markSaved()
+      refresh()
+      setSaveStatus('Saved to folder ✓')
+      setTimeout(() => setSaveStatus(null), 3000)
+    } catch (e) {
+      setSaveStatus(`Save failed: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 
   const closeProject = () => {
     if (
       session.isDirty() &&
-      !window.confirm('You have unsaved exports. Close the project anyway?')
+      !window.confirm('You have unsaved changes. Close the project anyway?')
     ) {
       return
     }
     setSession(null)
+    setDirHandle(null)
     setSelected(null)
   }
 
@@ -106,18 +151,38 @@ export default function App() {
           {session.isDirty() && <span className="ml-1 text-amber-400">●</span>}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          {saveStatus && (
+            <span
+              className={`text-xs ${saveStatus.startsWith('Save failed') ? 'text-red-400' : 'text-emerald-400'}`}
+            >
+              {saveStatus}
+            </span>
+          )}
           <button
             onClick={() => setShowAdd(true)}
             className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
           >
             Add document
           </button>
+          {dirHandle && (
+            <button
+              onClick={saveToFolder}
+              disabled={!session.isDirty()}
+              className="rounded bg-amber-700 px-3 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-600 disabled:opacity-40"
+            >
+              Save to project folder
+            </button>
+          )}
           <button
             onClick={doExport}
             disabled={exporting}
-            className="rounded bg-amber-700 px-3 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-600 disabled:opacity-50"
+            className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
+              dirHandle
+                ? 'border border-stone-700 text-stone-200 hover:bg-stone-800'
+                : 'bg-amber-700 text-amber-50 hover:bg-amber-600'
+            }`}
           >
-            {exporting ? 'Exporting…' : 'Export project (.zip)'}
+            {exporting ? 'Exporting…' : 'Export copy (.zip)'}
           </button>
           <button
             onClick={closeProject}

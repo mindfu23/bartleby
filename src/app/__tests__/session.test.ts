@@ -82,6 +82,39 @@ describe('ProjectSession', () => {
     )
   })
 
+  it('exportDelta returns only changed files plus scrivx, and cache deletions', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    // nothing dirty: a save would be a no-op
+    expect(s.exportDelta().writes.size).toBe(0)
+    expect(s.exportDelta().deletes).toEqual([])
+
+    s.applyEdit(UUID_SCENE1, SCENE1_TEXT.replace('world', 'there'))
+    const { writes, deletes } = s.exportDelta()
+    expect([...writes.keys()].sort()).toEqual(
+      ['Baseline.scrivx', `Files/Data/${UUID_SCENE1}/content.rtf`].sort(),
+    )
+    const scrivx = new TextDecoder().decode(writes.get('Baseline.scrivx')!)
+    expect(scrivx).not.toContain('ModID="B4A944C3-1111-2222-3333-444444444444"')
+    expect(deletes).toContain('docs.checksum')
+    expect(deletes).toContain('search.indexes')
+
+    s.markSaved()
+    expect(s.isDirty()).toBe(false)
+    expect(s.exportDelta().writes.size).toBe(0)
+    expect(s.exportDelta().deletes).toEqual([])
+  })
+
+  it('exportOriginalFiles returns pre-edit bytes for the backup', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.applyEdit(UUID_SCENE1, SCENE1_TEXT.replace('world', 'there'))
+    const original = s.exportOriginalFiles()
+    const origRtf = original.get(`Files/Data/${UUID_SCENE1}/content.rtf`)!
+    const origText = String.fromCharCode(...origRtf)
+    expect(origText).toContain('Hello world')
+    expect(origText).not.toContain('Hello there')
+    expect(original.has('docs.checksum')).toBe(true)
+  })
+
   it('round-trips an édited document with accents through export', () => {
     const s = ProjectSession.open(fixtureFiles())
     s.applyEdit(UUID_SCENE2, 'Una niña soñó. Ünd über alles.\n')

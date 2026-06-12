@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 import { ProjectSession } from '../app/session'
 import { importZip, importFileList } from '../app/zipio'
+import { supportsDirectAccess, pickProjectDirectory } from '../app/fsio'
 
 interface Props {
-  onOpen: (session: ProjectSession) => void
+  onOpen: (session: ProjectSession, dirHandle: FileSystemDirectoryHandle | null) => void
 }
 
 export default function OpenScreen({ onOpen }: Props) {
@@ -11,17 +12,24 @@ export default function OpenScreen({ onOpen }: Props) {
   const zipRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const direct = supportsDirectAccess()
 
-  const openFrom = async (load: () => Promise<Map<string, Uint8Array>>) => {
+  const openFrom = async (
+    load: () => Promise<{
+      files: Map<string, Uint8Array>
+      handle: FileSystemDirectoryHandle | null
+    } | null>,
+  ) => {
     setBusy(true)
     setError(null)
     try {
-      const files = await load()
-      if (files.size === 0) {
+      const result = await load()
+      if (result === null) return // user cancelled the picker
+      if (result.files.size === 0) {
         setError('No files found in the selection.')
         return
       }
-      onOpen(ProjectSession.open(files))
+      onOpen(ProjectSession.open(result.files), result.handle)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -35,14 +43,23 @@ export default function OpenScreen({ onOpen }: Props) {
         <h1 className="font-serif text-5xl text-amber-100">Bartleby</h1>
         <p className="mt-2 max-w-md text-stone-400">
           Open a Scrivener 3 project, browse the binder, edit document text, and
-          export a clean copy — your original is never touched.
+          save your changes back — with a backup made first.
         </p>
       </div>
 
       <div className="flex w-full max-w-sm flex-col gap-3">
         <button
           disabled={busy}
-          onClick={() => folderRef.current?.click()}
+          onClick={() => {
+            if (direct) {
+              void openFrom(async () => {
+                const picked = await pickProjectDirectory()
+                return picked ? { files: picked.files, handle: picked.handle } : null
+              })
+            } else {
+              folderRef.current?.click()
+            }
+          }}
           className="rounded-lg bg-amber-700 px-5 py-3 font-medium text-amber-50 transition hover:bg-amber-600 disabled:opacity-50"
         >
           Open a .scriv project folder
@@ -55,8 +72,9 @@ export default function OpenScreen({ onOpen }: Props) {
           Open a zipped project (.zip)
         </button>
         <p className="text-center text-xs text-stone-500">
-          On phones and tablets, zip the .scriv folder first — mobile browsers
-          can’t pick folders.
+          {direct
+            ? 'Folder mode can save changes straight back into the project. Zip mode exports a copy.'
+            : 'This browser can’t write to folders — you’ll export an edited copy as a zip. On phones, zip the .scriv folder first.'}
         </p>
       </div>
 
@@ -76,7 +94,9 @@ export default function OpenScreen({ onOpen }: Props) {
         className="hidden"
         onChange={(e) => {
           const list = e.target.files
-          if (list && list.length > 0) void openFrom(() => importFileList(list))
+          if (list && list.length > 0) {
+            void openFrom(async () => ({ files: await importFileList(list), handle: null }))
+          }
           e.target.value = ''
         }}
       />
@@ -87,7 +107,12 @@ export default function OpenScreen({ onOpen }: Props) {
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0]
-          if (file) void openFrom(async () => importZip(await file.arrayBuffer()))
+          if (file) {
+            void openFrom(async () => ({
+              files: await importZip(await file.arrayBuffer()),
+              handle: null,
+            }))
+          }
           e.target.value = ''
         }}
       />

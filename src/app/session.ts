@@ -36,6 +36,8 @@ export class SessionError extends Error {}
 export class ProjectSession {
   readonly projectName: string
   private files: Map<string, Uint8Array>
+  /** Snapshot of the project as opened, for pre-save backups. Bytes are never mutated in place. */
+  private originalFiles: Map<string, Uint8Array>
   private scrivxPath: string
   private scrivxText: string
   private model: ScrivxModel
@@ -50,6 +52,7 @@ export class ProjectSession {
   ) {
     this.projectName = projectName
     this.files = files
+    this.originalFiles = new Map(files)
     this.scrivxPath = scrivxPath
     this.scrivxText = new TextDecoder('utf-8').decode(files.get(scrivxPath)!)
     this.model = parseScrivx(this.scrivxText)
@@ -174,6 +177,35 @@ export class ProjectSession {
     const rtf = buildNewDocumentRtf(template, text.replace(/\r\n?/g, '\n'))
     this.storeDoc(uuid, rtf)
     return uuid
+  }
+
+  /** The project exactly as it was opened, for a restorable backup zip. */
+  exportOriginalFiles(): Map<string, Uint8Array> {
+    return new Map(this.originalFiles)
+  }
+
+  /**
+   * Minimal change-set for saving directly back into the source folder:
+   * dirty documents plus the freshened .scrivx, and the cache files to
+   * delete (phase0 §8 strip hypothesis). Empty when nothing is dirty.
+   */
+  exportDelta(): { writes: Map<string, Uint8Array>; deletes: string[] } {
+    if (!this.isDirty()) return { writes: new Map(), deletes: [] }
+    const writes = new Map<string, Uint8Array>()
+    for (const uuid of this.dirtyDocs) {
+      const path = this.docPath(uuid)
+      writes.set(path, this.files.get(path)!)
+    }
+    writes.set(this.scrivxPath, new TextEncoder().encode(updateProjectMeta(this.scrivxText)))
+    const deletes = STRIP_ON_EXPORT.filter((p) => this.files.has(p))
+    return { writes, deletes }
+  }
+
+  /** Call after a successful direct save: clears dirty state and stripped caches. */
+  markSaved(): void {
+    this.dirtyDocs.clear()
+    this.binderDirty = false
+    for (const p of STRIP_ON_EXPORT) this.files.delete(p)
   }
 
   /**
