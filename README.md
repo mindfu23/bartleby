@@ -2,7 +2,7 @@
 
 A Scrivener 3 project editor for the browser — and, next, Android. Open a
 `.scriv` project, browse the binder, read and edit document text, add new
-documents, and export a clean copy. The original project is never modified.
+documents, and save back safely.
 
 Named for the scrivener who would prefer not to.
 
@@ -21,7 +21,7 @@ Scrivener's RTF files are treated as **byte sequences, not documents**:
   project (never hand-authored).
 - The `.scrivx` binder is mutated by string splice too; cache files
   (`docs.checksum`, `search.indexes`, `binder.autosave`, `binder.backup`)
-  are stripped on export so Scrivener rebuilds them.
+  are stripped on save/export so Scrivener rebuilds them.
 
 See `architecture-frontend-boundary.md`, `phase0-handoff-scriv-roundtrip-spike.md`,
 and `phase1-handoff-edit-integration-and-sync.md` for the full design
@@ -33,8 +33,11 @@ contract, and `NOTES.md` for empirical findings.
    (mobile). All processing is client-side; nothing is uploaded anywhere.
 2. **Browse & edit** — select documents in the binder, edit the plain-text
    projection, Save.
-3. **Export** — downloads `<Project>-edited.scriv.zip`. Unzip it and open the
-   `.scriv` folder in Scrivener to verify.
+3. **Save back** — in Chrome/Edge, folder mode enables **Save to project
+   folder**, which writes only the changed files straight back into the
+   `.scriv` you opened (close it in Scrivener first). A backup zip of the
+   original downloads automatically before the first write. Firefox/Safari
+   don't support folder writes — use **Export copy (.zip)** there instead.
 
 **Current limitation:** editing is plain-text. Formatting *outside* your
 edits is preserved byte-for-byte; text you change is written back
@@ -45,7 +48,7 @@ unformatted. Applying new formatting (Phase 1, Gate 6) is not built yet.
 ```bash
 npm install
 npm run dev        # local dev server
-npm test           # unit tests (RTF run-map, scrivx, session)
+npm test           # unit tests (RTF run-map, scrivx, diff, session)
 npm run build      # typecheck + production build
 npm run preview    # serve the production build
 ```
@@ -53,10 +56,10 @@ npm run preview    # serve the production build
 ## Verification gates (manual, in desktop Scrivener)
 
 The automated tests lock in invariants, but only desktop Scrivener can pass
-the real gates (phase0 §11): export an untouched project (Gate 0), an edited
-one (Gate 2), and one with an added document (Gate 3), unzip each, and
-confirm Scrivener opens them with no error or repair dialog. Record findings
-in `NOTES.md`.
+the real gates (phase0 §11): save/export an untouched project (Gate 0), an
+edited one (Gate 2), and one with an added document (Gate 3), and confirm
+Scrivener opens each with no error or repair dialog. Record findings in
+`NOTES.md`.
 
 ## Roadmap
 
@@ -64,3 +67,8 @@ in `NOTES.md`.
 - **Next:** Android via Capacitor 7 wrapping the same core/session layers.
 - **Later:** rich-text editing (Phase 1 Problem A), Dropbox sync with
   conflict detection (Phase 1 Problem B).
+
+---
+
+*Original repo note:* repo for an Android app that can read and write
+Scrivener files, also a web version testing and perhaps alternate use.

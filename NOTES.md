@@ -58,6 +58,19 @@ Regression test asserts `\b bold\b0` and `\'e9` survive a start+end edit.
 Formatting *inside* a changed word/region is still flattened — true
 formatting-application is phase 1 Gate 6, not built.
 
+### Direct save-back added (2026-06-12, second pass)
+
+Folder mode (File System Access API, Chrome/Edge desktop) saves changes
+directly into the opened `.scriv`: minimal delta only (dirty `content.rtf`
+files + freshened `.scrivx`), the four cache files deleted, and a backup zip
+of the pristine original auto-downloaded before the first write. Verified
+in-browser against a stubbed directory handle: writes/deletes exactly as
+specified, interior `\b bold\b0` and `\'e9` bytes preserved through the real
+save path. This abandons phase0's "never mutate the input" rule by design
+(direct save IS the product goal); the automatic backup is the mitigation.
+Firefox/Safari/mobile keep the export-copy path. Android (Capacitor) will
+use native filesystem APIs instead.
+
 ### Gate status
 
 | Gate | Status |
