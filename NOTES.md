@@ -255,10 +255,10 @@ the third first-class mutation alongside edit-text and add-doc:
   or both (Enter in the title also saves; Esc reverts). Folders are renamable
   too. Title does NOT auto-commit on blur, so an unsaved title is discarded on
   doc switch, same as unsaved body text.
-- Manual **Gate 5 (rename)** pending: rename a doc + folder → export → open in
-  Scrivener, both titles present, nothing else changed. Not updating the item's
-  `Modified` attr on rename (project-level meta is freshened on export); Gate 5
-  will confirm Scrivener tolerates the stale per-item mod date.
+- **Gate 5 (rename) PASSED** (2026-07, Mac Scrivener): renamed a doc + a folder,
+  exported, opened clean — both titles present, nothing else changed. Confirms
+  Scrivener tolerates the stale per-item `Modified` attr (we only freshen
+  project-level meta on export).
 
 ### FEATURE — auto-save (Tier 1 + Tier 2, 2026-07)
 
@@ -266,12 +266,15 @@ Scrivener-style auto-save, split by what "save" means here:
 - **Tier 1 (commit draft → session):** `EditorPane` auto-commits 2s after the
   last edit, and on blur (leaving the title/body field). Manual Save still works.
   Cheap/memory-only; each commit self-validates (re-parse), so no silent corruption.
-- **Tier 2 (persist session → IndexedDB):** `recovery.ts` persists the whole
-  working session (via `session.serialize()`) to browser IndexedDB — a local
-  crash/close safety net, NOT the `.scriv` (that's still explicit Export/folder-
-  save). Debounced on mutation + flushed on `visibilitychange:hidden`. On open,
-  `OpenScreen` offers "Continue where you left off". Close now persists and keeps
-  the recovery record (no more "discard unsaved?" prompt — nothing is lost).
+- **Tier 2 (persist session → IndexedDB):** `recovery.ts` persists the working
+  session (`session.serialize()`) to browser IndexedDB — a crash/close safety net
+  for **unexported** work, NOT the `.scriv`. Debounce + hidden-flush + close all
+  **gated on `isDirty()`**, and a successful Export / Save-to-folder **clears the
+  record** (`clearRecovery`). So "Continue where you left off" appears ONLY when
+  there are unexported changes to lose — after a clean export it does not reappear
+  (earlier bug: it persisted unconditionally, so it showed even post-export and
+  read as "didn't detect the export"). A pre-fix stale record clears on first
+  Discard/Export.
 - **Save-on-close:** done via continuous persist + hidden-flush + `beforeunload`
   warning if dirty — NOT a single teardown-time write (browsers can't finish an
   async write during unload). On Android later, hook the flush to Capacitor App
@@ -294,8 +297,10 @@ Binder items can now be rearranged by drag-and-drop.
   drop, amber ring = drop-inside. Draft/Research/Trash root folders are fixed
   (non-draggable). Illegal drops are swallowed in `App.moveItem`.
 - Tests: 6 core (reorder/reparent/root-out/guards/well-formed) + 1 session.
-- Manual **Gate 6 (move)** pending: reorder + reparent → export → open in
-  Scrivener, structure matches, nothing lost.
+- **Gate 6 (move) PASSED** (2026-07, Mac Scrivener): dragged a doc from the
+  Research folder to a regular folder (cross-folder reparent), exported, opened
+  clean — structure correct. Exercises the block-cut/re-insert + `<Children>`
+  handling on a real project.
 
 ### FIXED — Export (.zip) now clears the unexported/dirty state (2026-07)
 

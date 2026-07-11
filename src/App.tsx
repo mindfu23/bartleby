@@ -36,10 +36,13 @@ export default function App() {
     void loadRecovery().then((r) => setRecovery(r))
   }, [])
 
-  // Tier 2 auto-save: debounce-persist the working session after mutations.
+  // Tier 2 auto-save: debounce-persist the working session, but ONLY while it has
+  // unexported changes — a clean (exported/saved) project needs no recovery copy.
   useEffect(() => {
     if (!session) return
-    const t = setTimeout(() => void saveRecovery(session.serialize()), 2000)
+    const t = setTimeout(() => {
+      if (session.isDirty()) void saveRecovery(session.serialize())
+    }, 2000)
     return () => clearTimeout(t)
   }, [session, version])
 
@@ -48,7 +51,9 @@ export default function App() {
   useEffect(() => {
     if (!session) return
     const onHide = () => {
-      if (document.visibilityState === 'hidden') void saveRecovery(session.serialize())
+      if (document.visibilityState === 'hidden' && session.isDirty()) {
+        void saveRecovery(session.serialize())
+      }
     }
     const onUnload = (e: BeforeUnloadEvent) => {
       if (session.isDirty()) {
@@ -168,6 +173,8 @@ export default function App() {
       if (!dirHandle) {
         session.markSaved()
         refresh()
+        void clearRecovery() // work is now in the exported file; no recovery needed
+        setRecovery(null)
       }
     } finally {
       setExporting(false)
@@ -201,6 +208,8 @@ export default function App() {
       await writeProjectDelta(dirHandle, writes, deletes)
       session.markSaved()
       refresh()
+      void clearRecovery() // saved to the source folder; no recovery needed
+      setRecovery(null)
       setSaveStatus('Saved to folder ✓')
       setTimeout(() => setSaveStatus(null), 3000)
     } catch (e) {
@@ -209,10 +218,15 @@ export default function App() {
   }
 
   const closeProject = () => {
-    // Persist on close so the project can be reopened where you left off.
-    const snapshot = session.serialize()
-    void saveRecovery(snapshot)
-    setRecovery({ projectName: snapshot.projectName, savedAt: Date.now(), snapshot })
+    // Keep a recovery copy only if there are unexported changes to lose.
+    if (session.isDirty()) {
+      const snapshot = session.serialize()
+      void saveRecovery(snapshot)
+      setRecovery({ projectName: snapshot.projectName, savedAt: Date.now(), snapshot })
+    } else {
+      void clearRecovery()
+      setRecovery(null)
+    }
     setSession(null)
     setDirHandle(null)
     setSelected(null)
