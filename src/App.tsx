@@ -162,6 +162,13 @@ export default function App() {
     try {
       const blob = await exportZip(session.exportFiles(), `${session.projectName}.scriv`)
       downloadBlob(blob, `${session.projectName}-edited.scriv.zip`)
+      // In zip mode the export IS the save — clear the dirty/unexported state.
+      // In folder mode the source folder is still unsaved until "Save to project
+      // folder", so leave it dirty there.
+      if (!dirHandle) {
+        session.markSaved()
+        refresh()
+      }
     } finally {
       setExporting(false)
     }

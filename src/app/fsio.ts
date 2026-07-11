@@ -30,49 +30,65 @@ export interface DirectProject {
 }
 
 /**
- * Resolve the actual `.scriv` project directory from a picked folder.
+ * Find the `.scriv` project(s) in a picked folder.
  *
  * macOS treats `.scriv` as a *package*, so the OS folder picker won't let you
- * select it directly — but you CAN select its parent, and packages are ordinary
- * directories once traversed. So: if the picked folder is itself a project (has
- * a `.scrivx`), use it; otherwise find the single `.scriv` subfolder inside it.
+ * select it directly (it grays out) — but you CAN select the folder that
+ * contains it, and packages are ordinary directories once traversed. If the
+ * picked folder is itself a project (has a `.scrivx`), it's the sole candidate;
+ * otherwise every `.scriv` subfolder is a candidate for the user to choose from.
  */
-export async function resolveScrivRoot(
-  dir: FileSystemDirectoryHandle,
-): Promise<FileSystemDirectoryHandle> {
-  const entries: FileSystemHandle[] = []
-  for await (const e of dir.values()) entries.push(e)
-
+export function findScrivProjects(
+  self: FileSystemDirectoryHandle,
+  entries: FileSystemHandle[],
+): FileSystemDirectoryHandle[] {
   if (entries.some((e) => e.kind === 'file' && e.name.toLowerCase().endsWith('.scrivx'))) {
-    return dir // the picked folder IS the project (e.g. Windows, or picked directly)
+    return [self]
   }
-  const scrivDirs = entries.filter(
-    (e): e is FileSystemDirectoryHandle =>
-      e.kind === 'directory' && e.name.toLowerCase().endsWith('.scriv'),
-  )
-  if (scrivDirs.length === 1) return scrivDirs[0]
-  if (scrivDirs.length > 1) {
-    throw new Error(
-      'That folder contains more than one .scriv project. Pick a folder holding just the one you want.',
+  return entries
+    .filter(
+      (e): e is FileSystemDirectoryHandle =>
+        e.kind === 'directory' && e.name.toLowerCase().endsWith('.scriv'),
     )
-  }
-  throw new Error(
-    'No .scriv project found here. On macOS, pick the folder that CONTAINS your .scriv (not the .scriv itself).',
-  )
+    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Returns null when the user cancels the picker. */
-export async function pickProjectDirectory(): Promise<DirectProject | null> {
+/** Read a `.scriv` directory handle into a root-prefixed path→bytes map. */
+export async function readProject(handle: FileSystemDirectoryHandle): Promise<DirectProject> {
+  const files = new Map<string, Uint8Array>()
+  await readDirRecursive(handle, handle.name + '/', files)
+  return { handle, files }
+}
+
+export type PickResult =
+  | { kind: 'project'; project: DirectProject }
+  | { kind: 'choose'; candidates: FileSystemDirectoryHandle[] }
+
+/**
+ * Pick a folder and resolve it to a project. One project → opened directly;
+ * several → returned for the caller to present a chooser. Null on cancel.
+ */
+export async function pickProjectDirectory(): Promise<PickResult | null> {
+  let picked: FileSystemDirectoryHandle
   try {
-    const picked = await window.showDirectoryPicker({ mode: 'readwrite' })
-    const root = await resolveScrivRoot(picked)
-    const files = new Map<string, Uint8Array>()
-    await readDirRecursive(root, root.name + '/', files)
-    return { handle: root, files }
+    picked = await window.showDirectoryPicker({ mode: 'readwrite' })
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return null
     throw e
   }
+  const entries: FileSystemHandle[] = []
+  for await (const e of picked.values()) entries.push(e)
+
+  const candidates = findScrivProjects(picked, entries)
+  if (candidates.length === 0) {
+    throw new Error(
+      'No .scriv project found here. Pick a folder that contains your Scrivener project(s).',
+    )
+  }
+  if (candidates.length === 1) {
+    return { kind: 'project', project: await readProject(candidates[0]) }
+  }
+  return { kind: 'choose', candidates }
 }
 
 /** Write changed files into the project folder and remove stripped caches. */

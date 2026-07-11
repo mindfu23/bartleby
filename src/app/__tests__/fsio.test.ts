@@ -1,39 +1,30 @@
 import { describe, it, expect } from 'vitest'
-import { resolveScrivRoot } from '../fsio'
+import { findScrivProjects } from '../fsio'
 
-// Minimal fake of FileSystemDirectoryHandle: just a name, kind, and children.
-function fileH(name: string) {
-  return { kind: 'file' as const, name }
-}
-function dirH(name: string, children: Array<{ kind: string; name: string }> = []) {
-  return {
-    kind: 'directory' as const,
-    name,
-    async *values() {
-      for (const c of children) yield c
-    },
-  }
-}
-const resolve = (h: unknown) => resolveScrivRoot(h as FileSystemDirectoryHandle)
+// Minimal fakes of FileSystemHandle.
+const fileH = (name: string) => ({ kind: 'file' as const, name })
+const dirH = (name: string) => ({ kind: 'directory' as const, name })
+const call = (self: unknown, entries: unknown[]) =>
+  findScrivProjects(self as FileSystemDirectoryHandle, entries as FileSystemHandle[]).map(
+    (h) => h.name,
+  )
 
-describe('resolveScrivRoot', () => {
-  it('returns the picked folder when it is itself the project (.scrivx inside)', async () => {
-    const proj = dirH('My.scriv', [fileH('My.scrivx'), dirH('Files')])
-    expect((await resolve(proj)).name).toBe('My.scriv')
+describe('findScrivProjects', () => {
+  it('treats the picked folder as the project when it has a .scrivx', () => {
+    const self = dirH('My.scriv')
+    expect(call(self, [fileH('My.scrivx'), dirH('Files')])).toEqual(['My.scriv'])
   })
 
-  it('finds the .scriv subfolder when a parent folder is picked (macOS path)', async () => {
-    const parent = dirH('Dropbox', [dirH('My.scriv', [fileH('My.scrivx')]), fileH('notes.txt')])
-    expect((await resolve(parent)).name).toBe('My.scriv')
+  it('returns the single .scriv subfolder (macOS parent-folder pick)', () => {
+    expect(call(dirH('Dropbox'), [dirH('My.scriv'), fileH('notes.txt')])).toEqual(['My.scriv'])
   })
 
-  it('rejects a folder with multiple .scriv projects', async () => {
-    const parent = dirH('Projects', [dirH('A.scriv', []), dirH('B.scriv', [])])
-    await expect(resolve(parent)).rejects.toThrow(/more than one/)
+  it('returns all .scriv projects, sorted, for the user to choose', () => {
+    const entries = [dirH('rewrite v2.scriv'), dirH('biz.scriv'), fileH('cover.png'), dirH('elohim.scriv')]
+    expect(call(dirH('ebooks'), entries)).toEqual(['biz.scriv', 'elohim.scriv', 'rewrite v2.scriv'])
   })
 
-  it('rejects a folder with no project', async () => {
-    const parent = dirH('Empty', [fileH('readme.md')])
-    await expect(resolve(parent)).rejects.toThrow(/No \.scriv project/)
+  it('returns nothing when there is no project', () => {
+    expect(call(dirH('Empty'), [fileH('readme.md')])).toEqual([])
   })
 })

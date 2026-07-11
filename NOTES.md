@@ -297,6 +297,28 @@ Binder items can now be rearranged by drag-and-drop.
 - Manual **Gate 6 (move)** pending: reorder + reparent → export → open in
   Scrivener, structure matches, nothing lost.
 
+### FIXED — Export (.zip) now clears the unexported/dirty state (2026-07)
+
+Bug: `doExport` downloaded the zip but never cleared dirty (only folder-save did),
+so after exporting the header still said "unexported changes" and Close nagged
+"not exported" repeatedly. Fix: in **zip mode** (no dir handle) the export IS the
+save → `markSaved()` + refresh after export. In **folder mode** the source folder
+is still unsaved until "Save to project folder", so dirty is left. Also reworded
+the recovery card ("Auto-saved backup in this browser · <time>", was
+"…not exported" which read as a nag).
+
+### FINDING — macOS delivers a selected `.scriv` package as a ZIP to a file input
+
+A user selected a `.scriv` via the **zip** open button (Show Options → All Files)
+and it loaded: on macOS, Chrome hands a selected package to `<input type=file>` as
+a **zip archive**, so `importZip` parses it directly. So Mac users CAN open an
+individual `.scriv` via the file-input path (read-only → export a copy; no
+write-back, since there's no directory handle). Added `.scriv` to the zip input's
+`accept` and relabeled the button "Open a project or .zip (copy)" so All Files
+isn't needed. Distinct from folder mode (`showDirectoryPicker`, read+write, needs
+parent-folder pick). Note: these test projects live in Dropbox and are also opened
+via iOS Scrivener — real multi-device sync context for the eventual Dropbox v1.
+
 ### GATE 0 — PASSED (2026-07-01, desktop Scrivener 3, macOS)
 
 Null round-trip of `example_v1.scriv` (opened via the **zip** path; see the
@@ -336,11 +358,14 @@ verified. From the code:
 
 macOS treats `.scriv` as a **package**, so the OS folder picker grays it out and
 a Mac user can't select the project directly. Fixed in `fsio.ts`
-`resolveScrivRoot`: the user picks the **parent folder** and the app finds the
-single `.scriv` subdirectory inside (packages are ordinary directories once you
-hold a parent handle — the restriction is only at picker-selection level). If the
-picked folder itself has a `.scrivx` (Windows / direct pick) it's used as-is;
-multiple/zero `.scriv` children error with guidance. Direct read+write
+`findScrivProjects` + `pickProjectDirectory`: the user picks the **parent
+folder** and the app finds the `.scriv` subdirectories inside (packages are
+ordinary directories once you hold a parent handle — the restriction is only at
+picker-selection level; `.scriv` files gray out in the OS picker). If the picked
+folder itself has a `.scrivx` (Windows / direct pick) it's used as-is; exactly
+one `.scriv` opens directly; **multiple `.scriv` → OpenScreen shows a chooser
+modal** (real folders often hold many projects); zero → error with guidance.
+Direct read+write
 (showDirectoryPicker, Chrome/Edge) now works with real local `.scriv` folders,
 incl. "Save to project folder" writing back. Selecting a parent grants readwrite
 to that whole subtree — pick a folder with just the project. Zip path unchanged
