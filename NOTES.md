@@ -250,12 +250,35 @@ the third first-class mutation alongside edit-text and add-doc:
   (`titleTextStart/End`) + `openTagEnd`; `setBinderItemTitle` splices just that
   span (minimal-diff, entity-encoded), inserting a `<Title>` if absent.
 - `session.ts`: `renameItem(uuid, title)` — documents and folders; marks dirty.
-- `EditorPane.tsx`: title is now an editable input (Enter/blur commits, Esc
-  reverts); folders are renamable too.
+- `EditorPane.tsx`: title is an editable input that's part of the editor draft.
+  The unified **Save** button commits whatever is pending — retitle, body edit,
+  or both (Enter in the title also saves; Esc reverts). Folders are renamable
+  too. Title does NOT auto-commit on blur, so an unsaved title is discarded on
+  doc switch, same as unsaved body text.
 - Manual **Gate 5 (rename)** pending: rename a doc + folder → export → open in
   Scrivener, both titles present, nothing else changed. Not updating the item's
   `Modified` attr on rename (project-level meta is freshened on export); Gate 5
   will confirm Scrivener tolerates the stale per-item mod date.
+
+### FEATURE — auto-save (Tier 1 + Tier 2, 2026-07)
+
+Scrivener-style auto-save, split by what "save" means here:
+- **Tier 1 (commit draft → session):** `EditorPane` auto-commits 2s after the
+  last edit, and on blur (leaving the title/body field). Manual Save still works.
+  Cheap/memory-only; each commit self-validates (re-parse), so no silent corruption.
+- **Tier 2 (persist session → IndexedDB):** `recovery.ts` persists the whole
+  working session (via `session.serialize()`) to browser IndexedDB — a local
+  crash/close safety net, NOT the `.scriv` (that's still explicit Export/folder-
+  save). Debounced on mutation + flushed on `visibilitychange:hidden`. On open,
+  `OpenScreen` offers "Continue where you left off". Close now persists and keeps
+  the recovery record (no more "discard unsaved?" prompt — nothing is lost).
+- **Save-on-close:** done via continuous persist + hidden-flush + `beforeunload`
+  warning if dirty — NOT a single teardown-time write (browsers can't finish an
+  async write during unload). On Android later, hook the flush to Capacitor App
+  `pause`.
+- **Tier 3 (auto-write to file/Dropbox) deliberately NOT done** — dangerous on a
+  timer (Scrivener-open conflicts; Dropbox partial-write/divergence). Dropbox
+  sync must be debounced + conflict-aware (DG-series), never a blind 2s timer.
 
 ### GATE 0 — PASSED (2026-07-01, desktop Scrivener 3, macOS)
 

@@ -22,6 +22,21 @@ import { buildDocsChecksum, DOCS_CHECKSUM_PATH } from './checksum'
 export type { BinderNode }
 
 /**
+ * A serializable snapshot of a session's full working state — enough to restore
+ * it exactly (edits, renames, dirty tracking, and the pristine original for
+ * backups). Structured-clone friendly (Map/Uint8Array), so it stores directly
+ * in IndexedDB for crash/close recovery.
+ */
+export interface SessionSnapshot {
+  projectName: string
+  scrivxPath: string
+  files: Map<string, Uint8Array>
+  originalFiles: Map<string, Uint8Array>
+  dirtyDocs: string[]
+  binderDirty: boolean
+}
+
+/**
  * Derived caches we cannot regenerate accurately, so we strip them and let
  * Scrivener rebuild on open (phase0 §8; Gate 0 confirmed a stale/absent cache
  * opens clean — see NOTES.md). Paths are root-relative, matching in-session
@@ -181,6 +196,29 @@ export class ProjectSession {
     const rtf = buildNewDocumentRtf(template, text.replace(/\r\n?/g, '\n'))
     this.storeDoc(uuid, rtf)
     return uuid
+  }
+
+  /** Capture the full working state for recovery persistence. */
+  serialize(): SessionSnapshot {
+    const files = new Map(this.files)
+    files.set(this.scrivxPath, new TextEncoder().encode(this.scrivxText))
+    return {
+      projectName: this.projectName,
+      scrivxPath: this.scrivxPath,
+      files,
+      originalFiles: new Map(this.originalFiles),
+      dirtyDocs: [...this.dirtyDocs],
+      binderDirty: this.binderDirty,
+    }
+  }
+
+  /** Restore a session from a snapshot produced by serialize(). */
+  static deserialize(s: SessionSnapshot): ProjectSession {
+    const session = new ProjectSession(s.projectName, new Map(s.files), s.scrivxPath)
+    session.originalFiles = new Map(s.originalFiles)
+    s.dirtyDocs.forEach((u) => session.dirtyDocs.add(u))
+    session.binderDirty = s.binderDirty
+    return session
   }
 
   /** Rename any binder item (document or folder). */

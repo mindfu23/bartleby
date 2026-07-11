@@ -141,6 +141,26 @@ describe('ProjectSession', () => {
     expect(scrivx).not.toContain('<Title>Scene One</Title>')
   })
 
+  it('serialize/deserialize restores edits, renames, and dirty state', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.applyEdit(UUID_SCENE1, SCENE1_TEXT.replace('world', 'there'))
+    s.renameItem(UUID_SCENE2, 'Renamed Scene')
+
+    const restored = ProjectSession.deserialize(s.serialize())
+
+    // content edit survived
+    expect(restored.readDoc(UUID_SCENE1)).toContain('there')
+    // rename survived (live scrivx captured in the snapshot)
+    const draft = restored.binderTree().find((n) => n.uuid === UUID_DRAFT)!
+    expect(draft.children.find((n) => n.uuid === UUID_SCENE2)!.title).toBe('Renamed Scene')
+    // dirty tracking survived
+    expect(restored.isDirty()).toBe(true)
+    expect(restored.isDirty(UUID_SCENE1)).toBe(true)
+    // and it still exports a consistent project
+    const out = restored.exportFiles()
+    expect(out.has('Files/Data/docs.checksum')).toBe(true)
+  })
+
   it('renames a folder', () => {
     const s = ProjectSession.open(fixtureFiles())
     s.renameItem(UUID_DRAFT, 'Manuscript')

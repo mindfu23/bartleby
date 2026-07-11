@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ProjectSession, type BinderNode } from './app/session'
 import { exportZip } from './app/zipio'
 import { writeProjectDelta } from './app/fsio'
+import { saveRecovery, loadRecovery, clearRecovery, type RecoveryRecord } from './app/recovery'
 import OpenScreen from './ui/OpenScreen'
 import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
@@ -25,19 +26,68 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [recovery, setRecovery] = useState<RecoveryRecord | null>(null)
   // bump to re-render after session mutations (session is a mutable class instance)
-  const [, setVersion] = useState(0)
+  const [version, setVersion] = useState(0)
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
+
+  // On first load, surface any previously-persisted working session.
+  useEffect(() => {
+    void loadRecovery().then((r) => setRecovery(r))
+  }, [])
+
+  // Tier 2 auto-save: debounce-persist the working session after mutations.
+  useEffect(() => {
+    if (!session) return
+    const t = setTimeout(() => void saveRecovery(session.serialize()), 2000)
+    return () => clearTimeout(t)
+  }, [session, version])
+
+  // Flush to recovery when the tab is hidden/backgrounded (the reliable
+  // "save on close" hook — async writes can't be trusted during teardown).
+  useEffect(() => {
+    if (!session) return
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') void saveRecovery(session.serialize())
+    }
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (session.isDirty()) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('beforeunload', onUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('beforeunload', onUnload)
+    }
+  }, [session])
 
   if (!session) {
     return (
       <OpenScreen
+        recovery={recovery}
+        onRestore={() => {
+          if (!recovery) return
+          setSession(ProjectSession.deserialize(recovery.snapshot))
+          setDirHandle(null)
+          setBackupDone(false)
+          setSaveStatus(null)
+          setSelected(null)
+          setRecovery(null)
+        }}
+        onDiscard={() => {
+          void clearRecovery()
+          setRecovery(null)
+        }}
         onOpen={(s, handle) => {
           setSession(s)
           setDirHandle(handle)
           setBackupDone(false)
           setSaveStatus(null)
           setSelected(null)
+          setRecovery(null)
         }}
       />
     )
@@ -141,12 +191,10 @@ export default function App() {
   }
 
   const closeProject = () => {
-    if (
-      session.isDirty() &&
-      !window.confirm('You have unsaved changes. Close the project anyway?')
-    ) {
-      return
-    }
+    // Persist on close so the project can be reopened where you left off.
+    const snapshot = session.serialize()
+    void saveRecovery(snapshot)
+    setRecovery({ projectName: snapshot.projectName, savedAt: Date.now(), snapshot })
     setSession(null)
     setDirHandle(null)
     setSelected(null)

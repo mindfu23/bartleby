@@ -2,12 +2,16 @@ import { useRef, useState } from 'react'
 import { ProjectSession } from '../app/session'
 import { importZip, importFileList } from '../app/zipio'
 import { supportsDirectAccess, pickProjectDirectory } from '../app/fsio'
+import type { RecoveryRecord } from '../app/recovery'
 
 interface Props {
   onOpen: (session: ProjectSession, dirHandle: FileSystemDirectoryHandle | null) => void
+  recovery: RecoveryRecord | null
+  onRestore: () => void
+  onDiscard: () => void
 }
 
-export default function OpenScreen({ onOpen }: Props) {
+export default function OpenScreen({ onOpen, recovery, onRestore, onDiscard }: Props) {
   const folderRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +50,31 @@ export default function OpenScreen({ onOpen }: Props) {
           save your changes back — with a backup made first.
         </p>
       </div>
+
+      {recovery && (
+        <div className="flex w-full max-w-sm flex-col gap-2 rounded-lg border border-amber-800 bg-amber-950/40 p-4">
+          <p className="text-sm text-amber-100">
+            Continue where you left off — <span className="font-medium">{recovery.projectName}.scriv</span>
+          </p>
+          <p className="text-xs text-stone-400">
+            Auto-saved {new Date(recovery.savedAt).toLocaleString()} · in this browser only, not exported.
+          </p>
+          <div className="mt-1 flex gap-2">
+            <button
+              onClick={onRestore}
+              className="rounded bg-amber-700 px-4 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-600"
+            >
+              Restore
+            </button>
+            <button
+              onClick={onDiscard}
+              className="rounded px-3 py-1.5 text-sm text-stone-400 hover:bg-stone-800"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex w-full max-w-sm flex-col gap-3">
         <button
