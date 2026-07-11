@@ -138,4 +138,4 @@ Each ends in a manual check. Run in order; iterate via `NOTES.md` on any failure
 
 ## 7. Out of scope for Phase 1
 
-No real-time collaboration / CRDT. No images, embedded binary, footnotes, comments (beyond preserving them as opaque spans). No compile. No auto-merge beyond the optional Gate 9 preview. UI polish belongs to the app phase, not the core.
+No real-time collaboration / CRDT. No footnotes, comments (beyond preserving them as opaque spans). No compile. No auto-merge beyond the optional Gate 9 preview. UI polish belongs to the app phase, not the core. **Images:** preservation (Tier 1) is inherited from Phase 0; **displaying and adding** images (Tiers 2–3 of `image-support-roadmap.md`) are in scope for the app phases — including the `\pict` PNG-emit recipe for new images that open in Mac + Windows Scrivener. Images *inside comments* wait on comment-storage research.

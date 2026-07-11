@@ -134,7 +134,7 @@ For each renderable run, record `(raw_byte_start, raw_byte_len, decoded_text)`. 
 
 Re-run `rtf-parser` on the output. It must parse with no error, and its extracted text must reflect the change. If it fails to parse, the splice broke structure. Diagnose before moving on.
 
-**Fixture constraint:** `rtf-parser` does not handle `\bin` binary or base64 images and can crash on them. Keep Phase 0 fixtures to simple text documents with no embedded images or binary.
+**Fixture sequencing (was: text-only constraint — now lifted, see `image-support-roadmap.md`):** the text-only rule was a `rtf-parser` artifact (that crate crashes on `\bin`/base64 images). The actual TS core uses its own run-map, not `rtf-parser`, and preserves `\pict` image groups as untouched opaque bytes by construction. So images are a supported goal, not a ban — they are simply *sequenced*: run **Gate 0** on a text-only project first to isolate the core round-trip, then **Gate 0b** on an image-bearing project. The only genuine parser hazard is `\binN` length-prefixed raw binary (absent from the current fixtures); handle it per the roadmap before claiming "any file."
 
 ---
 
@@ -177,7 +177,7 @@ Verification always opens the **output**. The input stays pristine as the baseli
 
 ## 10. Test fixtures and regression harness
 
-**Primary fixture:** author a fresh project in **desktop Scrivener 3** and commit it as `fixtures/baseline.scriv`. It should contain a couple of folders, several text documents with varied content (plain paragraphs, some bold and italic, a heading, accented characters such as é and ü to exercise escaping, and one empty document). No images, no embedded binary. Do **not** use `carsomyr/scrivener_starter` as a format fixture, it is old-format. It is useful only as a conceptual reference for which files are durable vs. regenerated.
+**Primary fixture:** author a fresh project in **desktop Scrivener 3** and commit it as `fixtures/baseline.scriv`. It should contain a couple of folders, several text documents with varied content (plain paragraphs, some bold and italic, a heading, accented characters such as é and ü to exercise escaping, and one empty document). Keep the **Gate 0** fixture text-only so the make-or-break round-trip is isolated; an image-bearing fixture is used at **Gate 0b** (see `image-support-roadmap.md`). Do **not** use `carsomyr/scrivener_starter` as a format fixture, it is old-format. It is useful only as a conceptual reference for which files are durable vs. regenerated.
 
 **Regression harness** (`cargo test` or a shell script): run each subcommand against the fixture into temp outputs and assert the automatable invariants:
 - output `content.rtf` re-parses under `rtf-parser`
@@ -195,7 +195,8 @@ The harness cannot assert "Scrivener accepts it." That stays manual (section 11)
 Each gate ends in a **manual open in desktop Scrivener** (Mac or Windows). Run them in order.
 
 - **Gate A, Thin-client boundary.** Defined in `architecture-frontend-boundary.md` §4. Every subcommand is a thin wrapper over one public core function, with no domain logic in the command handler. **Pass:** removing the CLI crate leaves a complete public API a GUI could bind to unchanged. Verify continuously, not just once.
-- **Gate 0, Null round-trip.** `roundtrip baseline.scriv -o out0.scriv` with zero edits. Open `out0` in Scrivener. **Pass:** opens with no error or repair dialog, binder and all text identical to baseline. This is make-or-break. If it fails, read/copy/cache handling is wrong and nothing else proceeds.
+- **Gate 0, Null round-trip.** `roundtrip baseline.scriv -o out0.scriv` with zero edits. Open `out0` in Scrivener. **Pass:** opens with no error or repair dialog, binder and all text identical to baseline. This is make-or-break. If it fails, read/copy/cache handling is wrong and nothing else proceeds. Use a **text-only** project here (`example_v1.scriv`).
+- **Gate 0b, Image preservation.** Round-trip a project containing real embedded images (`example.scriv`, which has `\jpegblip` `\pict` groups) with zero edits, then edit text in a *different* document and round-trip again. **Pass:** opens clean in Scrivener; every image renders exactly as before; the `\pict` bytes are byte-identical to the input. This confirms Tier 1 of `image-support-roadmap.md` (images preserved as opaque spans by construction). If it fails, the group-skipping/brace-matching in the run-map is mishandling `\pict` (or a `\binN` blob is present) — fix before any image display/add work.
 - **Gate 1, Read fidelity.** `inspect` shows the correct binder tree and `read <uuid>` prints text matching what Scrivener shows, including accented characters. **Pass:** matches.
 - **Gate 2, Edit.** `edit baseline.scriv <uuid> --find X --replace Y -o out2.scriv`. Open `out2`. **Pass:** opens clean, the target document shows Y where X was, its bold/italic/heading formatting intact, all other documents unchanged.
 - **Gate 3, Add.** `add baseline.scriv --parent <folder-uuid> --title "Spike Test" --text "Hello from headless." -o out3.scriv`. Open `out3`. **Pass:** opens clean, "Spike Test" appears under the right folder with the right body, existing content untouched.
@@ -228,6 +229,6 @@ Each gate ends in a **manual open in desktop Scrivener** (Mac or Windows). Run t
 
 ## 14. Out of scope for Phase 0
 
-No Android, Flutter, or UI. No Dropbox, cloud, or GCS. No images, embedded binary, footnotes, comments, snapshots, or compile. No full RTF fidelity beyond preserve-untouched plus simple edits. No conflict detection. All of that belongs to later phases.
+No Android, Flutter, or UI. No Dropbox, cloud, or GCS. No footnotes, comments, snapshots, or compile. No full RTF fidelity beyond preserve-untouched plus simple edits. No conflict detection. All of that belongs to later phases. **Images:** Phase 0 only *preserves* them as opaque bytes (Tier 1, verified at Gate 0b) — displaying and adding images are Phase-1+ work per `image-support-roadmap.md`, not banned.
 
 **Note on scope vs. the product goal:** Phase 0 proves *surgical* edits (find/replace) round-trip cleanly. It does **not** prove arbitrary rich-text round-trip or Dropbox/iOS sync — those are the two largest remaining product risks and are addressed in `phase1-handoff-edit-integration-and-sync.md`. Clearing Gate 4 means the format plumbing works, not that the product is de-risked.

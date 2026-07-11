@@ -1,0 +1,155 @@
+<html>
+
+<head>
+<title>example</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+<!-- NOTE: margin property = top-right-bottom-left -->
+<style type="text/css">
+
+	body {background-color: #e2e2e2}
+    
+    p.topLevelItemTitle {
+    	margin: 30px 0px 5px 0px;
+    	font-family: Times, Times New Roman, Palatino, Cochin, Serif;
+    	font-size: 30px;
+    	}
+    	
+    p.folderTitle {
+    	margin: 30px 0px 5px 0px;
+    	font-family: Times, Times New Roman, Palatino, Cochin, Serif;
+    	font-size: 18px;
+    	}
+    
+    p.itemTitle {
+    	margin: 30px 0px 5px 0px;
+    	font-family: Helvetica, Arial, Sans-Serif;
+    	font-size: 12px;
+    	font-weight: bold;
+    	}
+    	
+    p.itemText {
+    	margin: 0px 0px 10px 0px;
+    	font-family: Helvetica, Arial, Sans-Serif;
+    	font-size: 12px;
+    	}
+    	
+    p.itemTextStart {
+    	margin: 30px 0px 10px 0px;
+    	font-family: Helvetica, Arial, Sans-Serif;
+    	font-size: 12px;
+    	}
+    
+    .page {border: 1px solid #c0c0c0; background: #fff}
+    
+    hr {
+        border: none;
+        height: 1px;
+        color: #d4d4d4;
+        background-color: #d4d4d4;
+      	}
+      	
+    hr.afterTitle {
+    	margin-top: -3px;
+    }
+      	
+    hr.afterText {
+    	margin-top: 30px;
+    }
+      	
+    ul {
+      	list-style-type: none;
+      	padding-left: 30px;
+      	}
+      	
+</style>
+
+</head>
+
+<body>
+
+<table border="0" width="100%" cellspacing="3">
+<tr>
+<td>
+
+<table class="page" width="100%" cellspacing="10" cellpadding="2">
+
+<!-- Top margin -->
+<!-- Not needed, because of the padding above titles. -->
+<!--<tr><td height="15px"></td></tr>-->
+
+<tr>
+
+<!-- 42 + 30 of list indent = 72 - one inch. -->
+<!-- Actually that ends up too much, so we do 25 + 30 = 55px. -->
+<td width="25px">
+
+<td valign="top">
+
+<ul>
+<li>
+<p class="itemTextStart">This is a test draft of an article.</span></p></p>
+<p class="itemText"><p class="p1"><span class="s1"></p>
+</li>
+<li>
+<p class="topLevelItemTitle">Document 2</p>
+<p class="itemText">This is the second document in a test draft of an article.</p>
+</li>
+<hr class="afterText"/>
+<ul>
+<li>
+<p class="itemTitle">a nested document 2a</p>
+<p class="itemText">With text</p>
+</li>
+<li>
+<p class="itemTitle">a nested document 2b</p>
+<p class="itemText">With thext </p>
+</li>
+<hr class="afterText"/>
+<ul>
+<li>
+<p class="itemTextStart">Yet another nested document 2-b-1</p>
+</li>
+</ul>
+</ul>
+<hr class="afterText"/>
+
+<li>
+<p class="topLevelItemTitle">Folder chapter 1</p>
+</li>
+<hr class="afterTitle"/>
+<ul>
+<li>
+<p class="itemTitle">another document</p>
+<p class="itemText">OK, great. :) Took a look at the projects so far. Most identified the projects correctly.<span class="Apple-converted-space"> </span></span></p></p>
+<p class="itemText"><p class="p1"><span class="s1">- There were some separated items that are really part of the same project. Screenshot attached.</span></p></p>
+<p class="itemText"><p class="p1"><span class="s1">-- It's also worth noting some items that show up as different projects might really just be sub-projects or tasks or aspects of the same projects. Rather than try and create a rule for this, what might work best would be an additional column of "Related projects" or similar.<span class="Apple-converted-space"> </span></span></p></p>
+<p class="itemText"><p class="p1"><span class="s1">--- Ideally I could add this in by...</p>
+</li>
+<li>
+<p class="itemTitle">Untitled Document</p>
+</li>
+</ul>
+<hr class="afterTitle"/>
+
+<li>
+<p class="topLevelItemTitle">Folder chapter 2</p>
+</li>
+</ul>
+
+</td>
+<td width="55px">
+</td>
+</tr>
+
+<!-- Bottom margin -->
+<tr><td height="15px"></td></tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

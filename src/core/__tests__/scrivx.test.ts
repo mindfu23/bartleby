@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   parseScrivx,
   insertBinderItem,
+  setBinderItemTitle,
   updateProjectMeta,
   findNode,
   scrivenerTimestamp,
@@ -40,6 +41,64 @@ describe('parseScrivx', () => {
   it('captures a Text item MetaData block for cloning', () => {
     const model = parseScrivx(SCRIVX)
     expect(model.textItemMetaDataRaw).toContain('<IncludeInCompile>Yes</IncludeInCompile>')
+  })
+})
+
+describe('setBinderItemTitle', () => {
+  it('renames a single item, leaving every other byte identical', () => {
+    const model = parseScrivx(SCRIVX)
+    const node = findNode(model, UUID_SCENE1)!
+    const xml = setBinderItemTitle(SCRIVX, node, 'Scene One Revised')
+
+    expect(parseScrivx(xml).roots[0].children[0].title).toBe('Scene One Revised')
+    // sibling and folder titles untouched
+    const reparsed = parseScrivx(xml)
+    expect(reparsed.roots[0].title).toBe('Draft')
+    expect(reparsed.roots[0].children[1].title).toBe('Scene Two & Friends')
+    // exactly the old title text is what changed
+    expect(xml).toContain('<Title>Scene One Revised</Title>')
+    expect(SCRIVX.replace('Scene One', 'Scene One Revised')).toBe(xml)
+  })
+
+  it('XML-encodes special characters in the new title', () => {
+    const model = parseScrivx(SCRIVX)
+    const node = findNode(model, UUID_SCENE1)!
+    const xml = setBinderItemTitle(SCRIVX, node, 'A < B & C > D')
+    expect(xml).toContain('<Title>A &lt; B &amp; C &gt; D</Title>')
+    // round-trips back to the literal text
+    expect(parseScrivx(xml).roots[0].children[0].title).toBe('A < B & C > D')
+  })
+
+  it('renames an item whose current title already contains an entity', () => {
+    const model = parseScrivx(SCRIVX)
+    const node = findNode(model, UUID_SCENE2)!
+    expect(node.title).toBe('Scene Two & Friends')
+    const xml = setBinderItemTitle(SCRIVX, node, 'Renamed')
+    expect(parseScrivx(xml).roots[0].children[1].title).toBe('Renamed')
+    // the sibling that shares a prefix is not disturbed
+    expect(parseScrivx(xml).roots[0].children[0].title).toBe('Scene One')
+  })
+
+  it('renames a folder', () => {
+    const model = parseScrivx(SCRIVX)
+    const node = findNode(model, UUID_RESEARCH)!
+    const xml = setBinderItemTitle(SCRIVX, node, 'Reference')
+    expect(findNode(parseScrivx(xml), UUID_RESEARCH)!.title).toBe('Reference')
+  })
+
+  it('inserts a <Title> for an item that has none', () => {
+    const noTitle =
+      '<ScrivenerProject><Binder>' +
+      '<BinderItem UUID="99999999-9999-9999-9999-999999999999" Type="Text"><MetaData/></BinderItem>' +
+      '</Binder></ScrivenerProject>'
+    const model = parseScrivx(noTitle)
+    const node = findNode(model, '99999999-9999-9999-9999-999999999999')!
+    expect(node.title).toBe('')
+    const xml = setBinderItemTitle(noTitle, node, 'Now Named')
+    expect(xml).toContain('<Title>Now Named</Title>')
+    expect(findNode(parseScrivx(xml), '99999999-9999-9999-9999-999999999999')!.title).toBe(
+      'Now Named',
+    )
   })
 })
 

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SearchIndexes Version="1.0">
+    <Documents>
+        <Document ID="447716A1-66E7-4906-8000-C3A86280288C">
+            <Title>another document</Title>
+            <Text>OK, great. :) Took a look at the projects so far. Most identified the projects correctly. 
+- There were some separated items that are really part of the same project. Screenshot attached.
+-- It's also worth noting some items that show up as different projects might really just be sub-projects or tasks or aspects of the same projects. Rather than try and create a rule for this, what might work best would be an additional column of "Related projects" or similar. 
+--- Ideally I could add this in by hand, sometimes with multiple projects as some efforts can be parts of multiple different projects, including new ones. 
+
+Bolded text
+
+Italic text
+
+Underline text
+
+A bunch of characters - ǎ ö k</Text>
+        </Document>
+        <Document ID="7F9869D2-500A-4817-9AD5-70CF99852E8F">
+            <Text>Yet another nested document 2-b-1</Text>
+        </Document>
+        <Document ID="1B1908D4-36A0-4347-BFD8-3CDCFDC65239">
+            <Title>Folder chapter 1</Title>
+        </Document>
+        <Document ID="EBF76BC5-282A-45D4-A5BE-ACA6EE668C53">
+            <Title>Document 2</Title>
+            <Text>This is the second document in a test draft of an article.
+
+#</Text>
+            <Notes>Here are some notes that I will put some memes into also. ￼</Notes>
+        </Document>
+        <Document ID="680225FA-2A60-4B6C-B083-BFC5EAA39E04">
+            <Title>another document</Title>
+        </Document>
+        <Document ID="D9AAD581-BD33-4B81-A0F9-48341DF57B79">
+            <Text>This is a test draft of an article.
+
+
+#
+</Text>
+        </Document>
+        <Document ID="ADCB1666-AE38-45E8-A88B-1F2C5566AD57">
+            <Title>a nested document 2a</Title>
+        </Document>
+    </Documents>
+</SearchIndexes>

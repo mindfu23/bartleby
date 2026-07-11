@@ -84,9 +84,11 @@ export function fixtureFiles(rootPrefix = 'Baseline.scriv/'): Map<string, Uint8A
   files.set(`${rootPrefix}Files/Data/${UUID_SCENE1}/content.rtf`, latin1(SCENE1_RTF))
   files.set(`${rootPrefix}Files/Data/${UUID_SCENE2}/content.rtf`, latin1(SCENE2_RTF))
   files.set(`${rootPrefix}version.txt`, enc.encode('16'))
-  files.set(`${rootPrefix}docs.checksum`, enc.encode('fake-checksum'))
-  files.set(`${rootPrefix}search.indexes`, enc.encode('fake-index'))
-  files.set(`${rootPrefix}binder.autosave`, enc.encode('fake'))
-  files.set(`${rootPrefix}binder.backup`, enc.encode('fake'))
+  // Cache files at their real on-disk locations (docs.checksum lives under
+  // Files/Data/, the rest under Files/).
+  files.set(`${rootPrefix}Files/Data/docs.checksum`, enc.encode('fake-checksum'))
+  files.set(`${rootPrefix}Files/search.indexes`, enc.encode('fake-index'))
+  files.set(`${rootPrefix}Files/binder.autosave`, enc.encode('fake'))
+  files.set(`${rootPrefix}Files/binder.backup`, enc.encode('fake'))
   return files
 }

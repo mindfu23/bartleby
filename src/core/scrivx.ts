@@ -20,6 +20,11 @@ export interface BinderNode {
   itemEndOffset: number
   /** indentation (leading whitespace on the line) of this item's open tag */
   indent: string
+  /** byte span of this item's <Title> inner text; null if it has no <Title> */
+  titleTextStart: number | null
+  titleTextEnd: number | null
+  /** offset just after this item's opening <BinderItem ...> tag */
+  openTagEnd: number
 }
 
 export interface ScrivxModel {
@@ -114,6 +119,9 @@ export function parseScrivx(xml: string): ScrivxModel {
         childrenInsertOffset: null,
         itemEndOffset: -1,
         indent: indentAt(xml, start),
+        titleTextStart: null,
+        titleTextEnd: null,
+        openTagEnd: start + tag.length,
       }
       const parent = stack[stack.length - 1]
       if (parent) parent.children.push(node)
@@ -129,8 +137,10 @@ export function parseScrivx(xml: string): ScrivxModel {
       if (!isClose) {
         pendingTitleFor = current
         titleTextStart = start + tag.length
-      } else if (pendingTitleFor === current && current.title === '') {
+      } else if (pendingTitleFor === current && current.titleTextStart === null) {
         current.title = decodeXmlEntities(xml.slice(titleTextStart, start).trim())
+        current.titleTextStart = titleTextStart
+        current.titleTextEnd = start
         pendingTitleFor = null
       }
       continue
@@ -252,6 +262,21 @@ export function insertBinderItem(
     out = xml.slice(0, insertAt) + item + xml.slice(insertAt)
   }
   return { xml: out, uuid }
+}
+
+/**
+ * Rename a binder item (document or folder) by splicing its <Title> inner text
+ * in the original XML — minimal-diff, everything else byte-identical. If the
+ * item has no <Title> element, one is inserted just after its opening tag.
+ * `node` must come from a parse of this exact `xml` (offsets must be current).
+ */
+export function setBinderItemTitle(xml: string, node: BinderNode, title: string): string {
+  const encoded = encodeXmlText(title)
+  if (node.titleTextStart !== null && node.titleTextEnd !== null) {
+    return xml.slice(0, node.titleTextStart) + encoded + xml.slice(node.titleTextEnd)
+  }
+  const inserted = `\n${node.indent}    <Title>${encoded}</Title>`
+  return xml.slice(0, node.openTagEnd) + inserted + xml.slice(node.openTagEnd)
 }
 
 /**

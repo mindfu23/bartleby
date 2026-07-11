@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NotesScaleFactor</key>
+	<real>1</real>
+	<key>binderSplitFrames</key>
+	<array>
+		<string>{{0, 0}, {265, 650}}</string>
+		<string>{{266, 0}, {983, 650}}</string>
+	</array>
+	<key>bookmarksSelectionInfo</key>
+	<dict>
+		<key>1B1908D4-36A0-4347-BFD8-3CDCFDC65239</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>447716A1-66E7-4906-8000-C3A86280288C</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>680225FA-2A60-4B6C-B083-BFC5EAA39E04</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>7F9869D2-500A-4817-9AD5-70CF99852E8F</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>8064FE5E-BAE3-4906-AA77-E2CE0895EF6F</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>A4D8AE22-27F1-4CE1-B3C8-CF78B0558D65</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>ADCB1666-AE38-45E8-A88B-1F2C5566AD57</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>AFE570AB-BD1F-4335-84C5-B1C3AA6141EE</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>D9AAD581-BD33-4B81-A0F9-48341DF57B79</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+		<key>EBF76BC5-282A-45D4-A5BE-ACA6EE668C53</key>
+		<dict>
+			<key>Row</key>
+			<integer>-1</integer>
+		</dict>
+	</dict>
+	<key>collectionsRepresentedBinderDocumentsInfo</key>
+	<dict>
+		<key>MainID</key>
+		<string></string>
+		<key>SupportingID</key>
+		<string></string>
+	</dict>
+	<key>fullScreenTextEditorSettings</key>
+	<dict>
+		<key>textScaleFactor</key>
+		<real>1.25</real>
+	</dict>
+	<key>inspectorSplitFrames</key>
+	<array>
+		<string>{{0, 0}, {734, 620}}</string>
+		<string>{{735, 0}, {248, 620}}</string>
+	</array>
+	<key>inspectorWidth</key>
+	<real>248</real>
+	<key>mainDocumentEditor.dockedQRTextSettings</key>
+	<dict>
+		<key>textScaleFactor</key>
+		<real>1</real>
+	</dict>
+	<key>mainDocumentEditor.scrollRect</key>
+	<string>{{-49, 0}, {717, 560}}</string>
+	<key>mainDocumentEditor.textEditorState</key>
+	<dict>
+		<key>textScaleFactor</key>
+		<real>1</real>
+	</dict>
+	<key>mainWindowFrame</key>
+	<string>182 286 1249 682 0 0 1728 1084 </string>
+	<key>supportingDocumentEditor.dockedQRTextSettings</key>
+	<dict>
+		<key>textScaleFactor</key>
+		<real>1</real>
+	</dict>
+	<key>supportingDocumentEditor.scrollRect</key>
+	<string>{{0, 0}, {604, 290}}</string>
+	<key>supportingDocumentEditor.textEditorState</key>
+	<dict>
+		<key>textScaleFactor</key>
+		<real>1</real>
+	</dict>
+	<key>supportingDocumentViewIsCurrent</key>
+	<false/>
+</dict>
+</plist>

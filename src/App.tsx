@@ -48,6 +48,18 @@ export default function App() {
     setSidebarOpen(false)
   }
 
+  const findByUuid = (uuid: string): BinderNode | null => {
+    const walk = (nodes: BinderNode[]): BinderNode | null => {
+      for (const n of nodes) {
+        if (n.uuid === uuid) return n
+        const hit = walk(n.children)
+        if (hit) return hit
+      }
+      return null
+    }
+    return walk(session.binderTree())
+  }
+
   const saveEdit = (newText: string): string | null => {
     if (!selected) return null
     try {
@@ -63,16 +75,21 @@ export default function App() {
     try {
       const uuid = session.addDocument(parentUuid, title, '')
       refresh()
-      const find = (nodes: BinderNode[]): BinderNode | null => {
-        for (const n of nodes) {
-          if (n.uuid === uuid) return n
-          const hit = find(n.children)
-          if (hit) return hit
-        }
-        return null
-      }
-      const node = find(session.binderTree())
+      const node = findByUuid(uuid)
       if (node) setSelected(node)
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  const renameItem = (title: string): string | null => {
+    if (!selected) return null
+    try {
+      session.renameItem(selected.uuid, title)
+      refresh()
+      const node = findByUuid(selected.uuid)
+      if (node) setSelected(node) // reparse produced a fresh node; keep selection current
       return null
     } catch (e) {
       return e instanceof Error ? e.message : String(e)
@@ -217,6 +234,7 @@ export default function App() {
             node={selected}
             text={selected && !isFolderType(selected.type) ? session.readDoc(selected.uuid) : ''}
             onSave={saveEdit}
+            onRename={renameItem}
           />
         </main>
       </div>

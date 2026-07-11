@@ -19,9 +19,10 @@ Scrivener's RTF files are treated as **byte sequences, not documents**:
   structure throws instead of saving.
 - New documents clone the RTF header from an existing document in the same
   project (never hand-authored).
-- The `.scrivx` binder is mutated by string splice too; cache files
-  (`docs.checksum`, `search.indexes`, `binder.autosave`, `binder.backup`)
-  are stripped on save/export so Scrivener rebuilds them.
+- The `.scrivx` binder is mutated by string splice too. `docs.checksum` is
+  **regenerated** on export (real SHA-1s over the emitted bytes) so external-
+  change detection stays honest; the caches Scrivener can rebuild itself
+  (`search.indexes`, `binder.autosave`, `binder.backup`) are stripped.
 
 See `architecture-frontend-boundary.md`, `phase0-handoff-scriv-roundtrip-spike.md`,
 and `phase1-handoff-edit-integration-and-sync.md` for the full design
@@ -63,10 +64,13 @@ Scrivener opens each with no error or repair dialog. Record findings in
 
 ## Roadmap
 
-- **Now:** web version (this repo) — refine on Netlify.
-- **Next:** Android via Capacitor 7 wrapping the same core/session layers.
-- **Later:** rich-text editing (Phase 1 Problem A), Dropbox sync with
-  conflict detection (Phase 1 Problem B).
+- **Now:** web version (this repo); finish local mutation gates (2/3/4/0b).
+- **v1 → Android:** Dropbox-backed editing (read/write `.scriv` from Dropbox
+  via API), Capacitor 7 shell over the same core/session layers, conflict-copy
+  on divergence. Verified against Dropbox + Mac Scrivener. See
+  `android-v1-dropbox-plan.md`. Storage is Dropbox-only in v1 (no local/SAF).
+- **Phase 2:** rich-text editing (Phase 1 Problem A), conflict auto-merge,
+  comment/image editing, iOS/Windows Scrivener verification.
 
 ---
 

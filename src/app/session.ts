@@ -11,20 +11,24 @@ import { computeEditSpans } from '../core/diff'
 import {
   parseScrivx,
   insertBinderItem,
+  setBinderItemTitle,
   updateProjectMeta,
   findNode,
   type ScrivxModel,
   type BinderNode,
 } from '../core/scrivx'
+import { buildDocsChecksum, DOCS_CHECKSUM_PATH } from './checksum'
 
 export type { BinderNode }
 
 /**
- * Cache/derived files Scrivener rebuilds on open. Stripped on export per the
- * phase0 §8 hypothesis. UNVERIFIED against real desktop Scrivener until
- * Gate 0 is run manually — see NOTES.md.
+ * Derived caches we cannot regenerate accurately, so we strip them and let
+ * Scrivener rebuild on open (phase0 §8; Gate 0 confirmed a stale/absent cache
+ * opens clean — see NOTES.md). Paths are root-relative, matching in-session
+ * keys. NOTE: `docs.checksum` is NOT here — it is *regenerated*, not stripped
+ * (see checksum.ts), so external-change detection stays honest for sync.
  */
-const STRIP_ON_EXPORT = ['docs.checksum', 'search.indexes', 'binder.autosave', 'binder.backup']
+const STRIP_ON_EXPORT = ['Files/search.indexes', 'Files/binder.autosave', 'Files/binder.backup']
 
 interface DocState {
   rtf: string // latin1: 1 char == 1 byte
@@ -179,6 +183,15 @@ export class ProjectSession {
     return uuid
   }
 
+  /** Rename any binder item (document or folder). */
+  renameItem(uuid: string, title: string): void {
+    const node = findNode(this.model, uuid)
+    if (!node) throw new SessionError(`No binder item with UUID ${uuid}`)
+    this.scrivxText = setBinderItemTitle(this.scrivxText, node, title)
+    this.model = parseScrivx(this.scrivxText)
+    this.binderDirty = true
+  }
+
   /** The project exactly as it was opened, for a restorable backup zip. */
   exportOriginalFiles(): Map<string, Uint8Array> {
     return new Map(this.originalFiles)
@@ -197,6 +210,8 @@ export class ProjectSession {
       writes.set(path, this.files.get(path)!)
     }
     writes.set(this.scrivxPath, new TextEncoder().encode(updateProjectMeta(this.scrivxText)))
+    // Regenerate docs.checksum over the current (post-edit) document bytes.
+    writes.set(DOCS_CHECKSUM_PATH, buildDocsChecksum(this.files))
     const deletes = STRIP_ON_EXPORT.filter((p) => this.files.has(p))
     return { writes, deletes }
   }
@@ -206,6 +221,8 @@ export class ProjectSession {
     this.dirtyDocs.clear()
     this.binderDirty = false
     for (const p of STRIP_ON_EXPORT) this.files.delete(p)
+    // Keep the in-memory map consistent with what was written to disk.
+    this.files.set(DOCS_CHECKSUM_PATH, buildDocsChecksum(this.files))
   }
 
   /**
@@ -216,9 +233,11 @@ export class ProjectSession {
     const out = new Map<string, Uint8Array>()
     const scrivx = updateProjectMeta(this.scrivxText)
     for (const [path, bytes] of this.files) {
-      if (STRIP_ON_EXPORT.includes(path)) continue
+      if (STRIP_ON_EXPORT.includes(path) || path === DOCS_CHECKSUM_PATH) continue
       out.set(path, path === this.scrivxPath ? new TextEncoder().encode(scrivx) : bytes)
     }
+    // Regenerate docs.checksum last, over the exact bytes going out.
+    out.set(DOCS_CHECKSUM_PATH, buildDocsChecksum(out))
     return out
   }
 }
