@@ -165,7 +165,9 @@ export default function App() {
         <span className="font-serif text-lg text-amber-100">Bartleby</span>
         <span className="truncate text-sm text-stone-400">
           {session.projectName}.scriv
-          {session.isDirty() && <span className="ml-1 text-amber-400">●</span>}
+          {session.isDirty() && (
+            <span className="ml-2 text-xs text-amber-400">● unsaved changes</span>
+          )}
         </span>
         <div className="ml-auto flex items-center gap-2">
           {saveStatus && (

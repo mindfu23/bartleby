@@ -32,6 +32,7 @@ export default function EditorPane({ node, text, onSave, onRename }: Props) {
 
   const isFolder = isFolderType(node.type)
   const modified = draft !== text
+  const titlePending = titleDraft.trim() !== node.title
 
   const commitTitle = () => {
     const next = titleDraft.trim()
@@ -71,8 +72,15 @@ export default function EditorPane({ node, text, onSave, onRename }: Props) {
           }}
           aria-label="Document title"
           placeholder="(untitled)"
-          className="min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 font-medium text-stone-200 outline-none hover:bg-stone-800/50 focus:bg-stone-800 focus:ring-1 focus:ring-amber-700"
+          className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 font-medium text-stone-200 outline-none hover:bg-stone-800/50 focus:bg-stone-800 focus:ring-1 focus:ring-amber-700 ${
+            titlePending ? 'ring-1 ring-amber-600' : ''
+          }`}
         />
+        {titlePending && (
+          <span className="shrink-0 text-xs text-amber-400" title="Press Enter or click away to apply">
+            ⏎ apply
+          </span>
+        )}
         <span className="hidden shrink-0 truncate text-xs text-stone-600 sm:inline">{node.uuid}</span>
         {!isFolder && (
           <div className="ml-auto flex shrink-0 items-center gap-2">
