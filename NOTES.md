@@ -280,6 +280,23 @@ Scrivener-style auto-save, split by what "save" means here:
   timer (Scrivener-open conflicts; Dropbox partial-write/divergence). Dropbox
   sync must be debounced + conflict-aware (DG-series), never a blind 2s timer.
 
+### FEATURE — drag-and-drop move/reparent (2026-07, 4th mutation)
+
+Binder items can now be rearranged by drag-and-drop.
+- `scrivx.ts`: parser records each item's full block span (`blockStart`/
+  `blockEnd`); `moveBinderItem(xml, itemUuid, refUuid, before|after|inside)`
+  cuts the whole `<BinderItem>…</BinderItem>` block and re-inserts it (string
+  splice; re-indents to new depth; creates `<Children>` when dropping into an
+  empty folder). Guards against moving an item into itself/its own descendant.
+- `session.ts`: `moveItem(uuid, refUuid, position)`.
+- `BinderTree.tsx`: HTML5 DnD — drop on a row's top/bottom edge = reorder
+  before/after; drop on a folder's middle = move inside. Amber line = sibling
+  drop, amber ring = drop-inside. Draft/Research/Trash root folders are fixed
+  (non-draggable). Illegal drops are swallowed in `App.moveItem`.
+- Tests: 6 core (reorder/reparent/root-out/guards/well-formed) + 1 session.
+- Manual **Gate 6 (move)** pending: reorder + reparent → export → open in
+  Scrivener, structure matches, nothing lost.
+
 ### GATE 0 — PASSED (2026-07-01, desktop Scrivener 3, macOS)
 
 Null round-trip of `example_v1.scriv` (opened via the **zip** path; see the

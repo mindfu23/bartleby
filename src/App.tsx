@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ProjectSession, type BinderNode } from './app/session'
+import { ProjectSession, type BinderNode, type MovePosition } from './app/session'
 import { exportZip } from './app/zipio'
 import { writeProjectDelta } from './app/fsio'
 import { saveRecovery, loadRecovery, clearRecovery, type RecoveryRecord } from './app/recovery'
@@ -133,6 +133,17 @@ export default function App() {
     }
   }
 
+  const moveItem = (dragUuid: string, refUuid: string, position: MovePosition) => {
+    try {
+      session.moveItem(dragUuid, refUuid, position)
+      refresh()
+      const node = findByUuid(dragUuid)
+      if (node) setSelected(node)
+    } catch {
+      // illegal move (e.g. into its own descendant) — leave the binder unchanged
+    }
+  }
+
   const renameItem = (title: string): string | null => {
     if (!selected) return null
     try {
@@ -243,13 +254,16 @@ export default function App() {
           <button
             onClick={doExport}
             disabled={exporting}
+            title={session.isDirty() ? 'You have changes to export' : undefined}
             className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
-              dirHandle
+              dirHandle && !session.isDirty()
                 ? 'border border-stone-700 text-stone-200 hover:bg-stone-800'
                 : 'bg-amber-700 text-amber-50 hover:bg-amber-600'
             }`}
           >
-            {exporting ? 'Exporting…' : 'Export copy (.zip)'}
+            {exporting
+              ? 'Exporting…'
+              : `${session.isDirty() ? '● ' : ''}Export copy (.zip)`}
           </button>
           <button
             onClick={closeProject}
@@ -271,6 +285,7 @@ export default function App() {
             selected={selected?.uuid ?? null}
             isDirty={(uuid) => session.isDirty(uuid)}
             onSelect={selectNode}
+            onMove={moveItem}
           />
         </aside>
         {sidebarOpen && (

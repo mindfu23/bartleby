@@ -25,6 +25,10 @@ export interface BinderNode {
   titleTextEnd: number | null
   /** offset just after this item's opening <BinderItem ...> tag */
   openTagEnd: number
+  /** offset of this item's opening `<BinderItem` tag */
+  blockStart: number
+  /** offset just after this item's `</BinderItem>` close tag */
+  blockEnd: number
 }
 
 export interface ScrivxModel {
@@ -107,6 +111,7 @@ export function parseScrivx(xml: string): ScrivxModel {
         const node = stack.pop()
         if (!node) throw new ScrivxError(`Unbalanced </BinderItem> at offset ${start}`)
         node.itemEndOffset = start
+        node.blockEnd = start + tag.length
         continue
       }
       const attrs = attrsOf(tag)
@@ -122,6 +127,8 @@ export function parseScrivx(xml: string): ScrivxModel {
         titleTextStart: null,
         titleTextEnd: null,
         openTagEnd: start + tag.length,
+        blockStart: start,
+        blockEnd: -1,
       }
       const parent = stack[stack.length - 1]
       if (parent) parent.children.push(node)
@@ -262,6 +269,82 @@ export function insertBinderItem(
     out = xml.slice(0, insertAt) + item + xml.slice(insertAt)
   }
   return { xml: out, uuid }
+}
+
+export type MovePosition = 'before' | 'after' | 'inside'
+
+function isSelfOrDescendant(item: BinderNode, uuid: string): boolean {
+  return item.uuid === uuid || item.children.some((c) => isSelfOrDescendant(c, uuid))
+}
+
+/** Shift every line of `block` whose leading whitespace is `from` to `to` (a
+ *  uniform re-indent that preserves internal nesting). Whitespace-only cosmetic. */
+function shiftIndent(block: string, from: string, to: string): string {
+  if (from === to) return block
+  return block
+    .split('\n')
+    .map((line) => (line.startsWith(from) ? to + line.slice(from.length) : line))
+    .join('\n')
+}
+
+/**
+ * Move a binder item to a new location by cutting its whole `<BinderItem>…
+ * </BinderItem>` block and re-inserting it — string splices only, everything
+ * else byte-identical. `position` is relative to `refUuid`: `before`/`after` make
+ * it a sibling; `inside` appends it as a child of the (folder) ref. `node`
+ * offsets are taken from a fresh parse of `xml`, so callers pass raw xml.
+ */
+export function moveBinderItem(
+  xml: string,
+  itemUuid: string,
+  refUuid: string,
+  position: MovePosition,
+): string {
+  const model = parseScrivx(xml)
+  const item = findNode(model, itemUuid)
+  if (!item) throw new ScrivxError(`No binder item with UUID ${itemUuid}`)
+  if (!findNode(model, refUuid)) throw new ScrivxError(`No binder item with UUID ${refUuid}`)
+  if (isSelfOrDescendant(item, refUuid)) {
+    throw new ScrivxError('Cannot move an item into itself or its own descendant')
+  }
+
+  // 1. Extract the item's whole block: from the start of its indent line through
+  //    the newline after </BinderItem>.
+  const start = xml.lastIndexOf('\n', item.blockStart - 1) + 1
+  let end = item.blockEnd
+  if (xml[end] === '\n') end += 1
+  const block = xml.slice(start, end)
+  const oldIndent = item.indent
+
+  // 2. Remove it, then reparse so target offsets are correct in the shortened xml.
+  const removed = xml.slice(0, start) + xml.slice(end)
+  const m2 = parseScrivx(removed)
+  const ref = findNode(m2, refUuid)!
+
+  // 3. Compute the insertion point and re-indent the block to the new depth.
+  let insertAt: number
+  let toInsert: string
+  if (position === 'inside') {
+    const childIndent = ref.children.length ? ref.children[0].indent : ref.indent + '        '
+    const reindented = shiftIndent(block, oldIndent, childIndent)
+    if (ref.childrenInsertOffset !== null) {
+      insertAt = ref.childrenInsertOffset
+      toInsert = reindented
+    } else {
+      const chInd = ref.indent + '    '
+      insertAt = ref.itemEndOffset
+      toInsert = `${chInd}<Children>\n${reindented}${chInd}</Children>\n`
+    }
+  } else {
+    toInsert = shiftIndent(block, oldIndent, ref.indent)
+    if (position === 'before') {
+      insertAt = removed.lastIndexOf('\n', ref.blockStart - 1) + 1
+    } else {
+      insertAt = ref.blockEnd
+      if (removed[insertAt] === '\n') insertAt += 1
+    }
+  }
+  return removed.slice(0, insertAt) + toInsert + removed.slice(insertAt)
 }
 
 /**

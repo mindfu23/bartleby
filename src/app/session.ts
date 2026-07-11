@@ -12,14 +12,16 @@ import {
   parseScrivx,
   insertBinderItem,
   setBinderItemTitle,
+  moveBinderItem,
   updateProjectMeta,
   findNode,
   type ScrivxModel,
   type BinderNode,
+  type MovePosition,
 } from '../core/scrivx'
 import { buildDocsChecksum, DOCS_CHECKSUM_PATH } from './checksum'
 
-export type { BinderNode }
+export type { BinderNode, MovePosition }
 
 /**
  * A serializable snapshot of a session's full working state — enough to restore
@@ -226,6 +228,13 @@ export class ProjectSession {
     const node = findNode(this.model, uuid)
     if (!node) throw new SessionError(`No binder item with UUID ${uuid}`)
     this.scrivxText = setBinderItemTitle(this.scrivxText, node, title)
+    this.model = parseScrivx(this.scrivxText)
+    this.binderDirty = true
+  }
+
+  /** Move an item relative to `refUuid` (before/after = sibling, inside = child). */
+  moveItem(uuid: string, refUuid: string, position: MovePosition): void {
+    this.scrivxText = moveBinderItem(this.scrivxText, uuid, refUuid, position)
     this.model = parseScrivx(this.scrivxText)
     this.binderDirty = true
   }

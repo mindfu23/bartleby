@@ -167,6 +167,17 @@ describe('ProjectSession', () => {
     expect(s.binderTree().find((n) => n.uuid === UUID_DRAFT)!.title).toBe('Manuscript')
   })
 
+  it('moves an item into a folder, marks dirty, and persists through export', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.moveItem(UUID_SCENE1, UUID_DRAFT, 'inside') // already inside Draft, but re-nests cleanly
+    expect(s.isDirty()).toBe(true)
+    // reparent Scene One out under the binder root (after Draft)
+    s.moveItem(UUID_SCENE1, UUID_DRAFT, 'after')
+    expect(s.binderTree().map((n) => n.uuid)).toContain(UUID_SCENE1)
+    const out = s.exportFiles()
+    expect(out.has('Baseline.scrivx')).toBe(true)
+  })
+
   it('rejects renaming a nonexistent item', () => {
     const s = ProjectSession.open(fixtureFiles())
     expect(() => s.renameItem('00000000-0000-0000-0000-000000000000', 'X')).toThrow(/No binder/)

@@ -3,6 +3,7 @@ import {
   parseScrivx,
   insertBinderItem,
   setBinderItemTitle,
+  moveBinderItem,
   updateProjectMeta,
   findNode,
   scrivenerTimestamp,
@@ -99,6 +100,58 @@ describe('setBinderItemTitle', () => {
     expect(findNode(parseScrivx(xml), '99999999-9999-9999-9999-999999999999')!.title).toBe(
       'Now Named',
     )
+  })
+})
+
+describe('moveBinderItem', () => {
+  const childUuids = (xml: string, parentUuid: string) =>
+    findNode(parseScrivx(xml), parentUuid)!.children.map((c) => c.uuid)
+  const countItems = (nodes = parseScrivx(SCRIVX).roots): number =>
+    nodes.reduce((n, x) => n + 1 + countItems(x.children), 0)
+  const totalItems = (xml: string) => countItems(parseScrivx(xml).roots)
+  const BEFORE = countItems()
+
+  it('reorders a sibling (move Scene One after Scene Two)', () => {
+    const xml = moveBinderItem(SCRIVX, UUID_SCENE1, UUID_SCENE2, 'after')
+    expect(childUuids(xml, UUID_DRAFT).indexOf(UUID_SCENE1)).toBe(
+      childUuids(xml, UUID_DRAFT).indexOf(UUID_SCENE2) + 1,
+    )
+    expect(totalItems(xml)).toBe(BEFORE) // nothing lost or duplicated
+  })
+
+  it('reorders before a sibling (move Scene Two before Scene One)', () => {
+    const xml = moveBinderItem(SCRIVX, UUID_SCENE2, UUID_SCENE1, 'before')
+    const kids = childUuids(xml, UUID_DRAFT)
+    expect(kids.indexOf(UUID_SCENE2)).toBeLessThan(kids.indexOf(UUID_SCENE1))
+    expect(totalItems(xml)).toBe(BEFORE)
+  })
+
+  it('reparents into an empty folder (creates <Children>)', () => {
+    const xml = moveBinderItem(SCRIVX, UUID_SCENE1, UUID_RESEARCH, 'inside')
+    expect(childUuids(xml, UUID_RESEARCH)).toContain(UUID_SCENE1)
+    expect(childUuids(xml, UUID_DRAFT)).not.toContain(UUID_SCENE1)
+    expect(totalItems(xml)).toBe(BEFORE)
+    // its content (a nested Text item keeps its title) survived the move
+    expect(findNode(parseScrivx(xml), UUID_SCENE1)!.title).toBe('Scene One')
+  })
+
+  it('moves an item out to the binder root (after a top-level folder)', () => {
+    const xml = moveBinderItem(SCRIVX, UUID_SCENE1, UUID_RESEARCH, 'after')
+    const rootUuids = parseScrivx(xml).roots.map((r) => r.uuid)
+    expect(rootUuids).toContain(UUID_SCENE1)
+    expect(childUuids(xml, UUID_DRAFT)).not.toContain(UUID_SCENE1)
+    expect(totalItems(xml)).toBe(BEFORE)
+  })
+
+  it('rejects moving an item into itself or its own descendant', () => {
+    expect(() => moveBinderItem(SCRIVX, UUID_SCENE1, UUID_SCENE1, 'inside')).toThrow(/itself/)
+    // Draft (parent) cannot move inside Scene One (its child)
+    expect(() => moveBinderItem(SCRIVX, UUID_DRAFT, UUID_SCENE1, 'inside')).toThrow(/itself|descendant/)
+  })
+
+  it('produces well-formed, re-parseable output', () => {
+    const xml = moveBinderItem(SCRIVX, UUID_SCENE1, UUID_RESEARCH, 'inside')
+    expect(() => parseScrivx(xml)).not.toThrow()
   })
 })
 

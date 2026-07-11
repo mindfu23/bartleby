@@ -19,6 +19,8 @@ function node(over: Partial<BinderNode> = {}): BinderNode {
     titleTextStart: null,
     titleTextEnd: null,
     openTagEnd: 0,
+    blockStart: 0,
+    blockEnd: 0,
     ...over,
   }
 }
