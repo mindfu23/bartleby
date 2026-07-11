@@ -332,11 +332,16 @@ verified. From the code:
   Research to verify preservation and to scope display support (ties into
   `image-support-roadmap.md` Tier 2).
 
-### KNOWN ISSUE — macOS ".scriv project folder" open is a dead end
+### FIXED — macOS ".scriv project folder" open (parent-folder resolution)
 
-The "Open a .scriv project folder" button uses a directory picker
-(`showDirectoryPicker` / `webkitdirectory`). On macOS a `.scriv` is a **package**,
-which such pickers render as a grayed-out, unselectable file — so a Mac user can
-never open their project via the folder button. Workaround: zip the `.scriv` and
-use "Open a zipped project (.zip)". Fix later (guide users to zip, or detect and
-message). The Android app is immune (Scrivener projects are plain folders there).
+macOS treats `.scriv` as a **package**, so the OS folder picker grays it out and
+a Mac user can't select the project directly. Fixed in `fsio.ts`
+`resolveScrivRoot`: the user picks the **parent folder** and the app finds the
+single `.scriv` subdirectory inside (packages are ordinary directories once you
+hold a parent handle — the restriction is only at picker-selection level). If the
+picked folder itself has a `.scrivx` (Windows / direct pick) it's used as-is;
+multiple/zero `.scriv` children error with guidance. Direct read+write
+(showDirectoryPicker, Chrome/Edge) now works with real local `.scriv` folders,
+incl. "Save to project folder" writing back. Selecting a parent grants readwrite
+to that whole subtree — pick a folder with just the project. Zip path unchanged
+(still needed on Firefox/Safari). Android immune (plain folders there).

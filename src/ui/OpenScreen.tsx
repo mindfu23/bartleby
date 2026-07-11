@@ -102,7 +102,7 @@ export default function OpenScreen({ onOpen, recovery, onRestore, onDiscard }: P
         </button>
         <p className="text-center text-xs text-stone-500">
           {direct
-            ? 'Folder mode can save changes straight back into the project. Zip mode exports a copy.'
+            ? 'Folder mode saves changes straight back into the project. On macOS, pick the folder that CONTAINS your .scriv (the .scriv itself can’t be selected). Zip mode exports a copy.'
             : 'This browser can’t write to folders — you’ll export an edited copy as a zip. On phones, zip the .scriv folder first.'}
         </p>
       </div>
