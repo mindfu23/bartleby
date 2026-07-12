@@ -3,6 +3,7 @@ import { ProjectSession, type BinderNode, type MovePosition } from './app/sessio
 import { exportZip } from './app/zipio'
 import { writeProjectDelta } from './app/fsio'
 import { saveRecovery, loadRecovery, clearRecovery, type RecoveryRecord } from './app/recovery'
+import { uploadProject, bartlebyCopyPath } from './app/dropboxio'
 import OpenScreen from './ui/OpenScreen'
 import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
@@ -27,6 +28,8 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null)
+  // Set when the project was opened from Dropbox; enables "Save to Dropbox".
+  const [dropbox, setDropbox] = useState<{ token: string; scrivPath: string } | null>(null)
   // bump to re-render after session mutations (session is a mutable class instance)
   const [version, setVersion] = useState(0)
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
@@ -77,6 +80,7 @@ export default function App() {
           if (!recovery) return
           setSession(ProjectSession.deserialize(recovery.snapshot))
           setDirHandle(null)
+          setDropbox(null)
           setBackupDone(false)
           setSaveStatus(null)
           setSelected(null)
@@ -89,6 +93,16 @@ export default function App() {
         onOpen={(s, handle) => {
           setSession(s)
           setDirHandle(handle)
+          setDropbox(null)
+          setBackupDone(false)
+          setSaveStatus(null)
+          setSelected(null)
+          setRecovery(null)
+        }}
+        onOpenDropbox={(s, token, scrivPath) => {
+          setSession(s)
+          setDirHandle(null)
+          setDropbox({ token, scrivPath })
           setBackupDone(false)
           setSaveStatus(null)
           setSelected(null)
@@ -273,6 +287,23 @@ export default function App() {
     }
   }
 
+  const saveToDropbox = async () => {
+    if (!dropbox) return
+    const dest = bartlebyCopyPath(dropbox.scrivPath)
+    setSaveStatus('Saving to Dropbox…')
+    try {
+      await uploadProject(dropbox.token, dest, session.exportFiles())
+      session.markSaved()
+      refresh()
+      void clearRecovery()
+      setRecovery(null)
+      setSaveStatus(`Saved to Dropbox → ${dest.slice(dest.lastIndexOf('/') + 1)} ✓`)
+      setTimeout(() => setSaveStatus(null), 6000)
+    } catch (e) {
+      setSaveStatus(`Dropbox save failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const closeProject = () => {
     // Keep a recovery copy only if there are unexported changes to lose.
     if (session.isDirty()) {
@@ -285,12 +316,13 @@ export default function App() {
     }
     setSession(null)
     setDirHandle(null)
+    setDropbox(null)
     setSelected(null)
   }
 
   return (
-    <div className="flex h-full flex-col bg-stone-900">
-      <header className="flex items-center gap-2 border-b border-stone-800 px-3 py-2">
+    <div className="flex h-full flex-col overflow-x-hidden bg-stone-900">
+      <header className="flex flex-wrap items-center gap-2 border-b border-stone-800 px-3 py-2">
         <button
           aria-label="Toggle binder"
           className="rounded p-2 text-stone-300 hover:bg-stone-800 md:hidden"
@@ -305,7 +337,7 @@ export default function App() {
             <span className="ml-2 text-xs text-amber-400">● unexported changes</span>
           )}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {saveStatus && (
             <span
               className={`text-xs ${saveStatus.startsWith('Save failed') ? 'text-red-400' : 'text-emerald-400'}`}
@@ -326,6 +358,14 @@ export default function App() {
               className="rounded bg-amber-700 px-3 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-600 disabled:opacity-40"
             >
               Save to project folder
+            </button>
+          )}
+          {dropbox && (
+            <button
+              onClick={saveToDropbox}
+              className="rounded bg-sky-700 px-3 py-1.5 text-sm font-medium text-sky-50 hover:bg-sky-600"
+            >
+              {session.isDirty() ? '● ' : ''}Save to Dropbox
             </button>
           )}
           <button

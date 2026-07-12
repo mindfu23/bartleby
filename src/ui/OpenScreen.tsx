@@ -3,20 +3,23 @@ import { ProjectSession } from '../app/session'
 import { importZip, importFileList } from '../app/zipio'
 import { supportsDirectAccess, pickProjectDirectory, readProject } from '../app/fsio'
 import type { RecoveryRecord } from '../app/recovery'
+import DropboxDialog from './DropboxDialog'
 
 interface Props {
   onOpen: (session: ProjectSession, dirHandle: FileSystemDirectoryHandle | null) => void
+  onOpenDropbox: (session: ProjectSession, token: string, scrivPath: string) => void
   recovery: RecoveryRecord | null
   onRestore: () => void
   onDiscard: () => void
 }
 
-export default function OpenScreen({ onOpen, recovery, onRestore, onDiscard }: Props) {
+export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore, onDiscard }: Props) {
   const folderRef = useRef<HTMLInputElement>(null)
   const zipRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [choices, setChoices] = useState<FileSystemDirectoryHandle[] | null>(null)
+  const [showDropbox, setShowDropbox] = useState(false)
   const direct = supportsDirectAccess()
 
   const openFrom = async (
@@ -114,12 +117,29 @@ export default function OpenScreen({ onOpen, recovery, onRestore, onDiscard }: P
         >
           Open a project or .zip (copy)
         </button>
+        <button
+          disabled={busy}
+          onClick={() => setShowDropbox(true)}
+          className="rounded-lg border border-sky-800 bg-sky-950/40 px-5 py-3 font-medium text-sky-100 transition hover:bg-sky-900/50 disabled:opacity-50"
+        >
+          Open from Dropbox (beta)
+        </button>
         <p className="text-center text-xs text-stone-500">
           {direct
             ? 'Folder mode saves changes straight back into the project — on macOS, pick the folder that CONTAINS your .scriv. The other button opens a .scriv or .zip as a copy (edit + export a new copy; the original isn’t touched).'
             : 'This browser can’t write to folders — open a .scriv or .zip and export an edited copy. On phones, zip the .scriv folder first.'}
         </p>
       </div>
+
+      {showDropbox && (
+        <DropboxDialog
+          onOpen={(s, token, scrivPath) => {
+            setShowDropbox(false)
+            onOpenDropbox(s, token, scrivPath)
+          }}
+          onClose={() => setShowDropbox(false)}
+        />
+      )}
 
       {choices && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-6">

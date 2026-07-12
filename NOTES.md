@@ -361,6 +361,57 @@ text model since comments are anchored metadata, not inline rendering).
   `scrivcmt://` field-anchor mechanism round-trips into real Scrivener. Images
   still Phase 2.
 
+### DROPBOX WEB PROTOTYPE BUILT (2026-07-12) — testable on Android via browser
+
+`src/app/dropboxio.ts` (browser adapter: whoami/listScrivProjects/downloadProject/
+uploadProject, same HTTP API as DG0), `src/ui/DropboxDialog.tsx` (paste token →
+list `.scriv` under a folder → open), App "Save to Dropbox" (writes a
+**non-destructive `<name>-bartleby.scriv`** copy). Token in-memory only, never
+stored. Wired as a 3rd open method in OpenScreen ("Open from Dropbox (beta)").
+90 tests (3 new dropboxio helpers). Live at **https://bartleby-scriv.netlify.app**
+(prod).
+
+**✅ VERIFIED ON ANDROID (2026-07-12):** user opened a real Dropbox project in
+Android Chrome, added text + an anchored comment, Saved to Dropbox (`-bartleby`
+copy), and it opened perfectly in Mac Scrivener with the comment highlighted on
+the right text. **Browser CORS to Dropbox WORKS** — the whole Android v1 round-trip
+(Android browser → Dropbox API → Mac Scrivener) is proven end-to-end. This was
+the make-or-break for the Android direction; cleared from a real phone.
+
+**Mobile layout bug fixed:** header buttons overflowed on narrow screens showing a
+white gutter (no dark bg on html/body + no header wrap). Fix: dark bg in index.css
++ `flex-wrap` header/button-group + `overflow-x-hidden` root.
+
+Still: WEB prototype (mobile browser), not a native APK — no device/emulator here.
+OAuth deferred (token-paste). Save-to-Dropbox writes a non-destructive `-bartleby`
+copy, not in-place (conflict handling deferred).
+
+### DG0 SPIKE BUILT (2026-07-12) — `scripts/dg0.ts` (`npm run dg0`)
+
+Headless Dropbox round-trip spike (`tsx` dev dep). Downloads a `.scriv` from
+Dropbox via the API → null round-trip through `ProjectSession` (core runs
+headless in Node — verified: `--selftest` opens `example_v1.scriv` + re-exports;
+a dummy-token run reaches Dropbox 401, proving no browser-only import). Uploads
+to `<name>-dg0.scriv` (NEVER touches the source). Modes: `--selftest` (local, no
+token); non-`.scriv` path = list projects; `.scriv` path = round-trip. Token via
+`--token-file` (parses `DROPBOX_TOKEN=` or raw) or `DROPBOX_TOKEN` env; token
+stays off-repo (user keeps it on Desktop). Scopes: files.content.read/write +
+files.metadata.read. **DG0 pass = the `-dg0` copy opens clean in Mac Scrivener.**
+Pending: user runs it against a real `/ebooks/**.scriv`.
+
+### SOFT CHECKS — PASSED (2026-07-12)
+
+- **Real-project soak:** a full mixed session (edits, renames, moves/reparents,
+  adds, comment add/edit/delete, image-adjacent edits) on a copy of a real
+  project → exported → opened clean in Scrivener, all changes intact.
+- **Hard-quit recovery:** made unexported edits, fully quit the browser, reopened
+  → "Continue where you left off" restored the work. Tier 2 IndexedDB recovery
+  survives process death.
+
+**ALL PHASE 1 GATES PASS** (0, 0b, 1–7 + both soft checks). The TypeScript core is
+a validated Scrivener document engine. Remaining is deferred by design: write-back
+in place + Dropbox sync → Android prototype; image add/display → Phase 2.
+
 ### GATE 0b (image preservation) — PASSED (2026-07-12, Mac Scrivener)
 
 Added an image in Scrivener, opened the project in Bartleby (both folder and zip
