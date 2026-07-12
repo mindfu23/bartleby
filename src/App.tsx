@@ -115,6 +115,31 @@ export default function App() {
     return walk(session.binderTree())
   }
 
+  /** Nearest folder containing `target` (null = binder root, undefined = not found). */
+  const ancestorFolder = (
+    nodes: BinderNode[],
+    target: string,
+    folder: string | null = null,
+  ): string | null | undefined => {
+    for (const n of nodes) {
+      if (n.uuid === target) return folder
+      const hit = ancestorFolder(n.children, target, isFolderType(n.type) ? n.uuid : folder)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+
+  /** Where "Add document" should default: the current folder / the selected item's
+   *  folder, else the Draft folder, else binder root. */
+  const defaultAddParent = (): string | null => {
+    if (selected) {
+      if (isFolderType(selected.type)) return selected.uuid
+      const folder = ancestorFolder(session.binderTree(), selected.uuid)
+      if (folder !== undefined) return folder
+    }
+    return session.binderTree().find((n) => n.type === 'DraftFolder')?.uuid ?? null
+  }
+
   const saveEdit = (newText: string): string | null => {
     if (!selected) return null
     try {
@@ -363,7 +388,7 @@ export default function App() {
       {showAdd && (
         <AddDocumentDialog
           roots={session.binderTree()}
-          defaultParent={selected && isFolderType(selected.type) ? selected.uuid : null}
+          defaultParent={defaultAddParent()}
           onAdd={addDocument}
           onClose={() => setShowAdd(false)}
         />

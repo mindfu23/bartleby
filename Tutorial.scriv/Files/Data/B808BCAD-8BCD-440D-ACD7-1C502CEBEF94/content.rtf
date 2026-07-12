@@ -1,0 +1,50 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1404\cocoasubrtf470
+{\fonttbl\f0\froman\fcharset0 Palatino-Roman;\f1\fswiss\fcharset0 Helvetica;\f2\fswiss\fcharset0 ArialMT;
+}
+{\colortbl;\red255\green255\blue255;\red16\green133\blue214;\red127\green127\blue127;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc0\levelnfcn0\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{decimal\}.}{\leveltext\leveltemplateid1\'02\'00.;}{\levelnumbers\'01;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\pard\tx720\sl264\slmult1\sa360\pardirnatural\partightenfactor0
+
+\f0\fs28 \cf0 When covering \'93The Basics\'94, we saw how we could add comments and footnotes to text that are displayed in the inspector. Another way of adding footnotes and comments is to insert them 
+\i inline
+\i0 . The text of inline annotations and footnotes appears right inside your text (as opposed to inspector comments and footnotes, the text of which is hidden away in the inspector).\
+Whether you use inspector or inline footnotes and comments is entirely up to you (you can even use a mixture of both).\
+Inline footnotes and annotations look like this:\
+This text has a footnote after it.
+\f1\fs24 \{\\Scrv_fn=
+\f0\fs28  This is a footnote. When the text is compiled, exported or printed, this footnote will be turned into a \'93real\'94 footnote (or endnote).
+\f1\fs24 \\end_Scrv_fn\}
+\f0\fs28 \
+
+\f1\fs24 \{\\Scrv_annot \\color=\{\\R=0.619608\\G=0.043137\\B=0.011765\} \\text=
+\f0\fs28 And this is an annotation. Annotations can be completely removed from the text when you compile, print or export.
+\f1\fs24 \\end_Scrv_annot\}
+\f0\fs28 \
+To create an inline note:\
+\pard\tx220\tx720\li720\fi-720\sl264\slmult1\sa360\pardirnatural\partightenfactor0
+\ls1\ilvl0\cf0 {\listtext	1.	}Select the text you wish to turn into a footnote or annotation.\
+{\listtext	2.	}Go to 
+\f1\fs24 \cf2 <$Scr_Cs::0>
+\f2\b Insert > Inline Footnote
+\f1\b0 \cf0 <!$Scr_Cs::0>
+\f0\fs28  or 
+\f1\fs24 \cf2 <$Scr_Cs::0>
+\f2\b Insert > Inline Annotation
+\f1\b0 \cf0 <!$Scr_Cs::0>
+\f0\fs28  in the menu.\
+\pard\tx720\sl264\slmult1\sa360\pardirnatural\partightenfactor0
+\cf0 You can also choose one of these options with no selection and then start typing.\
+You can change the colour of an annotation by clicking into it and using the 
+\f1\fs24 \cf2 <$Scr_Cs::0>
+\f2\b Format > Color\'85
+\f1\b0 \cf0 <!$Scr_Cs::0>
+\f0\fs28  panel or the format bar colour button.\
+When you export your work, ranges of text defined as footnotes can be turned into end-of-page footnotes, and ranges of text defined as annotations can be turned into comments or omitted altogether.\
+\pard\tx720\sl264\slmult1\sa360\pardirnatural\partightenfactor0
+
+\f1\fs24 \cf3 <$Scr_Cs::1>
+\f2\i\b Note:
+\f1\i0\b0 \cf0 <!$Scr_Cs::1>
+\f0\fs28  When creating inline footnotes, the grey bubble should start exactly where you want the footnote marker to appear in the printed or exported text.\
+}

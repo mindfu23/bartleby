@@ -355,9 +355,11 @@ text model since comments are anchored metadata, not inline rendering).
 - Tests: 6 core (parse/serialize/project, wrap-preserves-projection + unwrap-is-
   inverse, template clone) + 1 session (full add/list/edit/delete cycle, text
   intact) + 1 UI (list + delete).
-- Manual **Gate 7 (comments)** pending: add/edit/delete a comment on a real
-  project → export → open in Scrivener; comment present, anchored to the right
-  range, and (for delete) text intact with the anchor gone. Images still Phase 2.
+- **Gate 7 (comments) PASSED** (2026-07, Mac Scrivener): comments added from
+  Bartleby appear in Scrivener's Comments & Footnotes panel, each **highlighted on
+  exactly the right text range** — the full `content.comments` sidecar +
+  `scrivcmt://` field-anchor mechanism round-trips into real Scrivener. Images
+  still Phase 2.
 
 ### GATE 0 — PASSED (2026-07-01, desktop Scrivener 3, macOS)
 
