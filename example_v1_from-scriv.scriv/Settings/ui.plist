@@ -92,7 +92,7 @@
 		<real>1</real>
 	</dict>
 	<key>mainDocumentEditor.scrollRect</key>
-	<string>{{-49, 0}, {717, 560}}</string>
+	<string>{{-49, 99}, {717, 560}}</string>
 	<key>mainDocumentEditor.textEditorState</key>
 	<dict>
 		<key>textScaleFactor</key>

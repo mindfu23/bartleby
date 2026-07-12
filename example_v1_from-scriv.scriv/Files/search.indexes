@@ -23,13 +23,15 @@ A bunch of characters - ǎ ö k </Text>
 another comment
 big stuff added again</Comments>
         </Document>
-        <Document ID="7F9869D2-500A-4817-9AD5-70CF99852E8F">
-            <Text>Yet another nested document 2-b-1</Text>
-        </Document>
         <Document ID="6D4362E1-8208-444F-9E94-04FE09300B57">
             <Title>adding another file, with a comma,</Title>
             <Text>more text here somehow </Text>
             <Comments>big time</Comments>
+        </Document>
+        <Document ID="8224809E-BB80-4DBA-97C6-01EFEC563503">
+            <Title>new text document</Title>
+            <Text>test text</Text>
+            <Comments>additional comment, now updated</Comments>
         </Document>
         <Document ID="A4D8AE22-27F1-4CE1-B3C8-CF78B0558D65">
             <Title>a nested document 2b</Title>
@@ -40,10 +42,12 @@ big stuff added again</Comments>
             <Text>Adding text to add a comment via Scrivener. </Text>
             <Comments>This is a comment added via scrivener.</Comments>
         </Document>
-        <Document ID="8224809E-BB80-4DBA-97C6-01EFEC563503">
-            <Title>new text document</Title>
-            <Text>test text</Text>
-            <Comments>additional comment, now updated</Comments>
+        <Document ID="7F9869D2-500A-4817-9AD5-70CF99852E8F">
+            <Text>Yet another nested document 2-b-1
+
+Image below.
+
+#</Text>
         </Document>
         <Document ID="680225FA-2A60-4B6C-B083-BFC5EAA39E04">
             <Title>another document</Title>

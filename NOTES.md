@@ -361,6 +361,14 @@ text model since comments are anchored metadata, not inline rendering).
   `scrivcmt://` field-anchor mechanism round-trips into real Scrivener. Images
   still Phase 2.
 
+### GATE 0b (image preservation) — PASSED (2026-07-12, Mac Scrivener)
+
+Added an image in Scrivener, opened the project in Bartleby (both folder and zip
+paths), added new text on the **same page above the image**, exported, reopened
+in Scrivener — image intact. Confirms Tier 1: `\pict` image bytes ride through as
+opaque spans untouched while text edits splice around them. (Display/add images
+= still Phase 2.)
+
 ### GATE 0 — PASSED (2026-07-01, desktop Scrivener 3, macOS)
 
 Null round-trip of `example_v1.scriv` (opened via the **zip** path; see the
