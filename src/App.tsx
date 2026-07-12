@@ -162,6 +162,37 @@ export default function App() {
     }
   }
 
+  const addComment = (start: number, end: number, text: string): string | null => {
+    if (!selected) return null
+    try {
+      session.addComment(selected.uuid, start, end, text)
+      refresh()
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  const editComment = (id: string, text: string) => {
+    if (!selected) return
+    try {
+      session.editComment(selected.uuid, id, text)
+      refresh()
+    } catch {
+      /* ignore — comment edit is best-effort */
+    }
+  }
+
+  const deleteComment = (id: string) => {
+    if (!selected) return
+    try {
+      session.deleteComment(selected.uuid, id)
+      refresh()
+    } catch {
+      /* ignore */
+    }
+  }
+
   const doExport = async () => {
     setExporting(true)
     try {
@@ -319,8 +350,12 @@ export default function App() {
           <EditorPane
             node={selected}
             text={selected && !isFolderType(selected.type) ? session.readDoc(selected.uuid) : ''}
+            comments={selected && !isFolderType(selected.type) ? session.getComments(selected.uuid) : []}
             onSave={saveEdit}
             onRename={renameItem}
+            onAddComment={addComment}
+            onEditComment={editComment}
+            onDeleteComment={deleteComment}
           />
         </main>
       </div>

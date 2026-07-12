@@ -6,7 +6,14 @@
  * clients over this class.
  */
 import { bytesToLatin1, latin1ToBytes } from '../core/latin1'
-import { buildRunMap, spliceEdits, buildNewDocumentRtf, type RunMap } from '../core/rtf'
+import {
+  buildRunMap,
+  spliceEdits,
+  buildNewDocumentRtf,
+  projToByte,
+  byteToProj,
+  type RunMap,
+} from '../core/rtf'
 import { computeEditSpans } from '../core/diff'
 import {
   parseScrivx,
@@ -15,10 +22,32 @@ import {
   moveBinderItem,
   updateProjectMeta,
   findNode,
+  newScrivenerUuid,
   type ScrivxModel,
   type BinderNode,
   type MovePosition,
 } from '../core/scrivx'
+import {
+  parseComments,
+  serializeComments,
+  commentText,
+  buildCommentBody,
+  wrapComment,
+  unwrapComment,
+  commentAnchorRanges,
+  DEFAULT_COMMENT_COLOR,
+} from '../core/comments'
+
+/** A comment as the UI sees it. `range` is the projection offsets of the
+ *  anchored text (null if the anchor can't be located); `anchorText` is that
+ *  text, for previewing/locating in the editor. */
+export interface DocComment {
+  id: string
+  color: string
+  text: string
+  range: { start: number; end: number } | null
+  anchorText: string
+}
 import { buildDocsChecksum, DOCS_CHECKSUM_PATH } from './checksum'
 
 export type { BinderNode, MovePosition }
@@ -170,6 +199,112 @@ export class ProjectSession {
   private storeDoc(uuid: string, rtf: string): void {
     this.files.set(this.docPath(uuid), latin1ToBytes(rtf))
     this.docs.set(uuid, { rtf, map: buildRunMap(rtf) })
+    this.dirtyDocs.add(uuid)
+  }
+
+  // ---- Comments (Scrivener linked comments) --------------------------------
+
+  private commentsPath(uuid: string): string {
+    return `Files/Data/${uuid}/content.comments`
+  }
+
+  /** First existing comment body in the project, to clone a header from. */
+  private findCommentTemplate(): string | null {
+    for (const [path, bytes] of this.files) {
+      if (path.endsWith('/content.comments')) {
+        const entries = parseComments(bytesToLatin1(bytes))
+        if (entries.length) return entries[0].bodyRtf
+      }
+    }
+    return null
+  }
+
+  /** The comments anchored in a document (empty when it has none). */
+  getComments(uuid: string): DocComment[] {
+    const bytes = this.files.get(this.commentsPath(uuid))
+    if (!bytes) return []
+    const state = this.loadDoc(uuid)
+    const anchors = state ? commentAnchorRanges(state.rtf) : new Map()
+    return parseComments(bytesToLatin1(bytes)).map((c) => {
+      const a = anchors.get(c.id)
+      let range: { start: number; end: number } | null = null
+      let anchorText = ''
+      if (a && state) {
+        const start = byteToProj(state.map, a.rawStart)
+        const end = byteToProj(state.map, a.rawEnd)
+        range = { start, end }
+        anchorText = state.map.plainText.slice(start, end)
+      }
+      return { id: c.id, color: c.color, text: commentText(c.bodyRtf), range, anchorText }
+    })
+  }
+
+  /**
+   * Add a comment anchored to the projection range [projStart, projEnd) of a
+   * document. Returns the new comment id.
+   */
+  addComment(uuid: string, projStart: number, projEnd: number, text: string): string {
+    if (projEnd <= projStart) throw new SessionError('Select some text to comment on.')
+    const state = this.loadDoc(uuid)
+    if (!state) throw new SessionError('Cannot comment on a document with no text.')
+
+    const rawStart = projToByte(state.map, projStart, 'start')
+    const rawEnd = projToByte(state.map, projEnd, 'end')
+    if (rawStart < 0 || rawEnd <= rawStart) throw new SessionError('Invalid selection.')
+
+    const id = newScrivenerUuid()
+    const newRtf = wrapComment(state.rtf, rawStart, rawEnd, id)
+    // The wrapper must not change the visible text — validate by re-projecting.
+    if (buildRunMap(newRtf).plainText !== state.map.plainText) {
+      throw new SessionError('Could not anchor the comment there — try selecting whole words.')
+    }
+    this.storeDoc(uuid, newRtf)
+
+    const path = this.commentsPath(uuid)
+    const entries = this.files.has(path)
+      ? parseComments(bytesToLatin1(this.files.get(path)!))
+      : []
+    entries.push({ id, color: DEFAULT_COMMENT_COLOR, bodyRtf: buildCommentBody(this.findCommentTemplate(), text) })
+    this.files.set(path, latin1ToBytes(serializeComments(entries)))
+    this.dirtyDocs.add(uuid)
+    return id
+  }
+
+  /** Replace a comment's body text. */
+  editComment(uuid: string, commentId: string, text: string): void {
+    const path = this.commentsPath(uuid)
+    const bytes = this.files.get(path)
+    if (!bytes) throw new SessionError('No comments for this document.')
+    const entries = parseComments(bytesToLatin1(bytes))
+    const entry = entries.find((c) => c.id === commentId)
+    if (!entry) throw new SessionError(`No comment ${commentId}.`)
+
+    const map = buildRunMap(entry.bodyRtf)
+    const spans = computeEditSpans(map.plainText, text.replace(/\r\n?/g, '\n'))
+    if (spans.length) entry.bodyRtf = spliceEdits(entry.bodyRtf, map, spans)
+    this.files.set(path, latin1ToBytes(serializeComments(entries)))
+    this.dirtyDocs.add(uuid)
+  }
+
+  /** Remove a comment: unlink its anchor from the text and drop the sidecar entry. */
+  deleteComment(uuid: string, commentId: string): void {
+    const state = this.loadDoc(uuid)
+    if (state) {
+      const newRtf = unwrapComment(state.rtf, commentId)
+      if (newRtf !== state.rtf) {
+        if (buildRunMap(newRtf).plainText !== state.map.plainText) {
+          throw new SessionError('Removing that comment would alter the document text.')
+        }
+        this.storeDoc(uuid, newRtf)
+      }
+    }
+    const path = this.commentsPath(uuid)
+    const bytes = this.files.get(path)
+    if (bytes) {
+      const entries = parseComments(bytesToLatin1(bytes)).filter((c) => c.id !== commentId)
+      if (entries.length) this.files.set(path, latin1ToBytes(serializeComments(entries)))
+      else this.files.delete(path)
+    }
     this.dirtyDocs.add(uuid)
   }
 

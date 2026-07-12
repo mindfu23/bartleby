@@ -178,6 +178,39 @@ describe('ProjectSession', () => {
     expect(out.has('Baseline.scrivx')).toBe(true)
   })
 
+  it('adds, lists, edits, and deletes a comment without altering the text', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    const proj = s.readDoc(UUID_SCENE1)
+    const start = proj.indexOf('world')
+    expect(start).toBeGreaterThanOrEqual(0)
+
+    const id = s.addComment(UUID_SCENE1, start, start + 'world'.length, 'check this')
+    expect(s.readDoc(UUID_SCENE1)).toBe(proj) // visible text unchanged
+    expect(s.isDirty(UUID_SCENE1)).toBe(true)
+
+    let comments = s.getComments(UUID_SCENE1)
+    expect(comments).toHaveLength(1)
+    expect(comments[0].id).toBe(id)
+    expect(comments[0].text).toBe('check this')
+    // the anchor maps back to exactly the commented word
+    expect(comments[0].anchorText).toBe('world')
+    expect(comments[0].range).toEqual({ start, end: start + 'world'.length })
+
+    // the anchor and sidecar are present in the export
+    const out = s.exportFiles()
+    const rtf = String.fromCharCode(...out.get(`Files/Data/${UUID_SCENE1}/content.rtf`)!)
+    expect(rtf).toContain(`scrivcmt://${id}`)
+    expect(out.has(`Files/Data/${UUID_SCENE1}/content.comments`)).toBe(true)
+
+    s.editComment(UUID_SCENE1, id, 'checked')
+    expect(s.getComments(UUID_SCENE1)[0].text).toBe('checked')
+
+    s.deleteComment(UUID_SCENE1, id)
+    expect(s.getComments(UUID_SCENE1)).toHaveLength(0)
+    expect(s.readDoc(UUID_SCENE1)).toBe(proj) // text restored after unlink
+    expect(s.exportFiles().has(`Files/Data/${UUID_SCENE1}/content.comments`)).toBe(false)
+  })
+
   it('rejects renaming a nonexistent item', () => {
     const s = ProjectSession.open(fixtureFiles())
     expect(() => s.renameItem('00000000-0000-0000-0000-000000000000', 'X')).toThrow(/No binder/)

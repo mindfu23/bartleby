@@ -324,6 +324,41 @@ isn't needed. Distinct from folder mode (`showDirectoryPicker`, read+write, need
 parent-folder pick). Note: these test projects live in Dropbox and are also opened
 via iOS Scrivener — real multi-device sync context for the eventual Dropbox v1.
 
+### FEATURE — comment add/edit/delete (2026-07, 5th mutation)
+
+Brought Scrivener linked comments forward from Phase 2 (tractable in the plain-
+text model since comments are anchored metadata, not inline rendering).
+- `core/comments.ts`: parse/serialize `content.comments`, project a comment body
+  to text, `buildCommentBody` (clone an existing comment header or minimal
+  template), `wrapComment` (splice the `{\field…scrivcmt://id…\fldrslt <text>}}`
+  anchor into content.rtf) and `unwrapComment` (remove it, keep the text; RTF-
+  escape-aware brace matching).
+- `session.ts`: `getComments`/`addComment`/`editComment`/`deleteComment`.
+  addComment maps the editor **projection selection → raw bytes** via `projToByte`
+  and **validates by re-projecting** (the wrap must not change visible text, else
+  it throws — no corruption). Deleting the last comment removes the sidecar.
+- `EditorPane.tsx`: a **Comment** button (annotates the textarea selection; commits
+  any pending edit first so offsets match) + a comments panel with colour dot,
+  Edit, Delete. Uses an **inline composer**, NOT `window.prompt`/`confirm` — those
+  are blocked in sandboxed iframes (VS Code's Simple Browser), where they silently
+  return null. Selection is tracked in a ref + button `mousedown` preventDefault so
+  clicking Comment doesn't collapse the selection.
+- **Env note:** for full testing use a real Chrome/Edge window, not VS Code's
+  Simple Browser — the latter sandboxes modals and may restrict File System Access
+  (folder mode) / IndexedDB.
+- **Anchor reveal:** `commentAnchorRanges` (core) + `byteToProj` map each comment's
+  `\fldrslt` span back to projection offsets; `getComments` returns `range` +
+  `anchorText`. UI shows the quoted anchored snippet per comment and click-selects
+  it in the textarea. Persistent inline highlight (colored marks in-text) is NOT
+  possible in a `<textarea>` — that's Phase 2 with the rich editor, which the
+  per-comment `range` is already ready to drive.
+- Tests: 6 core (parse/serialize/project, wrap-preserves-projection + unwrap-is-
+  inverse, template clone) + 1 session (full add/list/edit/delete cycle, text
+  intact) + 1 UI (list + delete).
+- Manual **Gate 7 (comments)** pending: add/edit/delete a comment on a real
+  project → export → open in Scrivener; comment present, anchored to the right
+  range, and (for delete) text intact with the anchor gone. Images still Phase 2.
+
 ### GATE 0 — PASSED (2026-07-01, desktop Scrivener 3, macOS)
 
 Null round-trip of `example_v1.scriv` (opened via the **zip** path; see the

@@ -17,8 +17,9 @@ Underline text
 A bunch of characters - ǎ ö k</Text>
             <Comments>7/1/26, 10:04 PM - here is a comment, that also has the default time and date.</Comments>
         </Document>
-        <Document ID="7F9869D2-500A-4817-9AD5-70CF99852E8F">
-            <Text>Yet another nested document 2-b-1</Text>
+        <Document ID="ADCB1666-AE38-45E8-A88B-1F2C5566AD57">
+            <Title>a nested document 2a</Title>
+            <Text>With text</Text>
         </Document>
         <Document ID="1B1908D4-36A0-4347-BFD8-3CDCFDC65239">
             <Title>Folder chapter 1</Title>
@@ -38,9 +39,8 @@ A bunch of characters - ǎ ö k</Text>
             <Text>This is a test draft of an article.
 </Text>
         </Document>
-        <Document ID="ADCB1666-AE38-45E8-A88B-1F2C5566AD57">
-            <Title>a nested document 2a</Title>
-            <Text>With text</Text>
+        <Document ID="7F9869D2-500A-4817-9AD5-70CF99852E8F">
+            <Text>Yet another nested document 2-b-1</Text>
         </Document>
     </Documents>
 </SearchIndexes>

@@ -244,6 +244,17 @@ export function projToByte(map: RunMap, pos: number, side: 'start' | 'end'): num
   return -1 // empty document: caller must use the end-of-document fallback
 }
 
+/** Map a raw byte offset back to a projection (plain-text) offset. */
+export function byteToProj(map: RunMap, byte: number): number {
+  let cum = 0
+  for (const p of map.pieces) {
+    if (byte < p.start) return cum
+    if (byte < p.end) return p.literal ? cum + (byte - p.start) : cum
+    cum += p.text.length
+  }
+  return cum
+}
+
 /** RTF-escape replacement text. Non-ASCII goes out as \uN? escapes. */
 export function escapeRtf(text: string): string {
   let out = ''
