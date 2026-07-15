@@ -1,0 +1,63 @@
+/* Theme transition effects */
+[data-theme] .phone-frame,
+[data-theme] .bottom-nav,
+[data-theme] .home-indicator,
+[data-theme] .card-inner,
+[data-theme] .project-card,
+[data-theme] .stat-card,
+[data-theme] .writing-toolbar {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease;
+}
+
+/* Dark theme specific overrides */
+[data-theme="dark"] .brand-name {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+[data-theme="dark"] .section-heading {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+[data-theme="dark"] .brand-subtitle::before {
+  background: var(--color-warm);
+}
+
+/* Color themes use dark mode typography */
+[data-theme="lavender"] .brand-name,
+[data-theme="mint"] .brand-name,
+[data-theme="coral"] .brand-name {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+[data-theme="lavender"] .section-heading,
+[data-theme="mint"] .section-heading,
+[data-theme="coral"] .section-heading {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Light theme - decorative diamond visible */
+[data-theme="light"] .deco-divider {
+  display: flex;
+}
+
+/* Dark/color themes - hide the decorative divider */
+[data-theme="dark"] .deco-divider,
+[data-theme="lavender"] .deco-divider,
+[data-theme="mint"] .deco-divider,
+[data-theme="coral"] .deco-divider {
+  display: none;
+}

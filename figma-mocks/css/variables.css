@@ -1,0 +1,100 @@
+:root,
+[data-theme="light"] {
+  --color-bg: #faf6f0;
+  --color-surface: #fffdf9;
+  --color-text: #1e221e;
+  --color-text-secondary: #6b6e6a;
+  --color-accent: #c5a059;
+  --color-accent-soft: #f2ead8;
+  --color-success: #5b8c5a;
+  --color-warm: #a36d55;
+  --color-border: #e8e2d8;
+  --color-nav-bg: #fffdf9;
+  --color-progress-bg: #f2ead8;
+  --color-progress-fill: #c5a059;
+  --color-bar-fill: #c5a059;
+  --color-indicator: #1e221e;
+
+  --font-display: 'Big Shoulders Display', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-serif: 'Young Serif', serif;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 18px;
+  --radius-xl: 36px;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+}
+
+[data-theme="dark"] {
+  --color-bg: #0d0c0b;
+  --color-surface: #1a1917;
+  --color-text: #faf5ec;
+  --color-text-secondary: #a09a90;
+  --color-accent: #e8a838;
+  --color-accent-soft: #2a2520;
+  --color-success: #4caf50;
+  --color-warm: #e07040;
+  --color-border: #2a2826;
+  --color-nav-bg: #1a1917;
+  --color-progress-bg: #2a2520;
+  --color-progress-fill: #e8a838;
+  --color-bar-fill: #e8a838;
+  --color-indicator: #faf5ec;
+}
+
+[data-theme="lavender"] {
+  --color-bg: #1d1135;
+  --color-surface: #2a1f4a;
+  --color-text: #faf5e9;
+  --color-text-secondary: #b8a8d4;
+  --color-accent: #b48cf5;
+  --color-accent-soft: #3a2860;
+  --color-success: #8be0a0;
+  --color-warm: #c8aff5;
+  --color-border: #3a2860;
+  --color-nav-bg: #2a1f4a;
+  --color-progress-bg: #3a2860;
+  --color-progress-fill: #b48cf5;
+  --color-bar-fill: #b48cf5;
+  --color-indicator: #faf5e9;
+}
+
+[data-theme="mint"] {
+  --color-bg: #0f2a24;
+  --color-surface: #1a3d35;
+  --color-text: #faf5e9;
+  --color-text-secondary: #a0d4c4;
+  --color-accent: #6edcbe;
+  --color-accent-soft: #1a4a3e;
+  --color-success: #6edcbe;
+  --color-warm: #96e1cd;
+  --color-border: #1a4a3e;
+  --color-nav-bg: #1a3d35;
+  --color-progress-bg: #1a4a3e;
+  --color-progress-fill: #6edcbe;
+  --color-bar-fill: #6edcbe;
+  --color-indicator: #faf5e9;
+}
+
+[data-theme="coral"] {
+  --color-bg: #2a1520;
+  --color-surface: #3d1f30;
+  --color-text: #faf5e9;
+  --color-text-secondary: #d4a0b8;
+  --color-accent: #f082aa;
+  --color-accent-soft: #4a1a35;
+  --color-success: #f5a5c3;
+  --color-warm: #f082aa;
+  --color-border: #4a1a35;
+  --color-nav-bg: #3d1f30;
+  --color-progress-bg: #4a1a35;
+  --color-progress-fill: #f082aa;
+  --color-bar-fill: #f082aa;
+  --color-indicator: #faf5e9;
+}

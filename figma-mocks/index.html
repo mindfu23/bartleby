@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bartleby — Your Scrivener Companion</title>
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/pages.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Manrope:wght@400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Theme Switcher (dev tool) -->
+    <div class="theme-switcher">
+      <button data-theme="light" class="active" title="Light">☀️</button>
+      <button data-theme="dark" title="Dark">🌙</button>
+      <button data-theme="lavender" title="Lavender">💜</button>
+      <button data-theme="mint" title="Mint">🌿</button>
+      <button data-theme="coral" title="Coral">🌸</button>
+    </div>
+
+    <div class="phone-frame">
+      <!-- Status Bar -->
+      <div class="status-bar">
+        <span class="status-time">9:41</span>
+        <div class="status-icons">
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><rect x="0" y="3" width="3" height="9" rx="1"/><rect x="4.5" y="2" width="3" height="10" rx="1"/><rect x="9" y="1" width="3" height="11" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg>
+          <svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor"><path d="M7.5 2.5C9.8 2.5 11.9 3.4 13.4 4.9L14.8 3.5C12.9 1.6 10.3 0.5 7.5 0.5C4.7 0.5 2.1 1.6 0.2 3.5L1.6 4.9C3.1 3.4 5.2 2.5 7.5 2.5ZM7.5 6.5C8.9 6.5 10.2 7 11.2 7.9L12.6 6.5C11.2 5.2 9.4 4.5 7.5 4.5C5.6 4.5 3.8 5.2 2.4 6.5L3.8 7.9C4.8 7 6.1 6.5 7.5 6.5ZM7.5 10.5C8.1 10.5 8.6 10.3 9 9.9L7.5 8.5L6 9.9C6.4 10.3 6.9 10.5 7.5 10.5Z"/></svg>
+          <svg width="24" height="12" viewBox="0 0 24 12" fill="currentColor"><rect x="0" y="1" width="20" height="10" rx="3" stroke="currentColor" stroke-width="1" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5"/><rect x="21" y="4" width="2" height="4" rx="1"/></svg>
+        </div>
+      </div>
+
+      <!-- Pages (only one visible at a time) -->
+      <main class="pages">
+        <!-- HOME PAGE -->
+        <section class="page page-home active" id="page-home">
+          <header class="header">
+            <div class="brand">
+              <h1 class="brand-name">BARTLEBY</h1>
+              <span class="brand-subtitle">SYNCED WITH SCRIVENER</span>
+            </div>
+            <div class="user-avatar">B</div>
+          </header>
+
+          <div class="deco-divider">
+            <span class="divider-line"></span>
+            <span class="divider-diamond"></span>
+            <span class="divider-line"></span>
+          </div>
+
+          <div class="sync-status-card">
+            <div class="card-inner">
+              <div class="sync-badge">
+                <span class="sync-label">LATEST BACKUP</span>
+                <strong class="sync-title">The Great Gatsby.scriv</strong>
+                <span class="sync-meta">Auto-saved 4 minutes ago</span>
+              </div>
+            </div>
+          </div>
+
+          <section class="section-projects">
+            <h2 class="section-heading">ACTIVE MANUSCRIPTS</h2>
+            <div class="project-card">
+              <div class="project-info">
+                <h3 class="project-title">The Great Gatsby</h3>
+                <span class="project-meta">Novel • Draft 2</span>
+                <span class="project-progress-text">32,450 / 50,000 words</span>
+              </div>
+              <div class="progress-ring" data-progress="65">
+                <svg viewBox="0 0 48 48">
+                  <circle cx="24" cy="24" r="20" class="progress-bg"/>
+                  <circle cx="24" cy="24" r="20" class="progress-fill" style="stroke-dashoffset: 44"/>
+                </svg>
+                <span class="progress-label">65%</span>
+              </div>
+            </div>
+            <div class="project-card">
+              <div class="project-info">
+                <h3 class="project-title">Death of a Salesman</h3>
+                <span class="project-meta">Stage Play • Act I</span>
+                <span class="project-progress-text">12,100 / 20,000 words</span>
+              </div>
+              <div class="progress-ring" data-progress="60">
+                <svg viewBox="0 0 48 48">
+                  <circle cx="24" cy="24" r="20" class="progress-bg"/>
+                  <circle cx="24" cy="24" r="20" class="progress-fill" style="stroke-dashoffset: 50"/>
+                </svg>
+                <span class="progress-label">60%</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="recent-activity">
+            <h2 class="section-heading">RECENT ACTIVITY</h2>
+            <div class="activity-item">
+              <span class="activity-icon">✦</span>
+              <div class="activity-text">
+                <strong>Drafted "Myrtle's Party" (Chapter 2)</strong>
+                <span>Today • +1,040 words</span>
+              </div>
+            </div>
+            <div class="activity-item">
+              <span class="activity-icon">✦</span>
+              <div class="activity-text">
+                <strong>Polished "Valley of Ashes" (Chapter 1)</strong>
+                <span>Yesterday • +480 words</span>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- PROJECT PAGE -->
+        <section class="page page-project" id="page-project">
+          <header class="page-header">
+            <button class="back-btn">←</button>
+            <h1 class="page-title">THE GREAT GATSBY</h1>
+            <button class="settings-btn">⚙</button>
+          </header>
+
+          <div class="session-target-card">
+            <div class="card-inner">
+              <div class="target-header">
+                <span class="target-label">SESSION TARGET</span>
+                <span class="target-badge">DAILY</span>
+              </div>
+              <div class="target-count">
+                <strong>842</strong> / 1,000 words
+              </div>
+              <p class="target-hint">158 words left to lock in today's streak.</p>
+            </div>
+          </div>
+
+          <section class="streak-section">
+            <div class="streak-header">
+              <h2 class="streak-title">DAILY WRITING STREAK</h2>
+              <span class="streak-count">4 DAYS ACTIVE</span>
+            </div>
+            <div class="streak-diamonds">
+              <span class="diamond filled">◆</span>
+              <span class="diamond filled">◆</span>
+              <span class="diamond filled">◆</span>
+              <span class="diamond filled">◆</span>
+              <span class="diamond empty">◇</span>
+              <span class="diamond empty">◇</span>
+              <span class="diamond empty">◇</span>
+            </div>
+            <div class="streak-days">
+              <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            </div>
+          </section>
+
+          <section class="chapter-outline">
+            <h2 class="section-heading">CHAPTER OUTLINE</h2>
+            <div class="chapter-item">
+              <span class="chapter-num">1.</span>
+              <div class="chapter-info">
+                <h3>The Valley of Ashes</h3>
+                <span>3,240 words • Synced</span>
+              </div>
+              <span class="chapter-status done">DONE</span>
+            </div>
+            <div class="chapter-item">
+              <span class="chapter-num">2.</span>
+              <div class="chapter-info">
+                <h3>Myrtle's Party</h3>
+                <span>2,100 words • Editing</span>
+              </div>
+              <span class="chapter-status drafting">DRAFTING</span>
+            </div>
+            <div class="chapter-item">
+              <span class="chapter-num">3.</span>
+              <div class="chapter-info">
+                <h3>Gatsby's Library</h3>
+                <span>0 words • Planned</span>
+              </div>
+              <span class="chapter-status outline">OUTLINE</span>
+            </div>
+          </section>
+        </section>
+
+        <!-- WRITING PAGE -->
+        <section class="page page-writing" id="page-writing">
+          <header class="page-header">
+            <button class="back-btn">←</button>
+            <div class="writing-header-center">
+              <h1 class="page-title">THE GREAT GATSBY</h1>
+              <span class="writing-subtitle">Chapter 2: Myrtle's Party</span>
+            </div>
+            <span class="writing-chevron">⌄</span>
+          </header>
+
+          <article class="writing-content">
+            <p class="writing-text opening">In my younger and more vulnerable years my father gave me some advice that I've been turning over in my mind ever since.</p>
+            <p class="writing-text quote">"Whenever you feel like criticizing any one," he told me, "just remember that all the people in this world haven't had the advantages that you've had."</p>
+            <p class="writing-text">He didn't say any more, but we've always been unusually communicative in a reserved way, and I understood that he meant a great deal more than that. I'm inclined to reserve all judgments, a habit that has opened up many curious natures to me and also made me the victim of not a few veteran bores.</p>
+          </article>
+
+          <footer class="writing-footer">
+            <div class="word-counter">
+              <span class="word-count-current">482</span> / 1,000 words this session • 45 min remaining
+            </div>
+            <div class="writing-toolbar">
+              <button class="toolbar-btn"><strong>B</strong></button>
+              <button class="toolbar-btn"><em>I</em></button>
+              <button class="toolbar-btn">≡</button>
+              <button class="toolbar-btn">✂</button>
+              <button class="toolbar-btn">◎</button>
+            </div>
+          </footer>
+        </section>
+
+        <!-- STATS PAGE -->
+        <section class="page page-stats" id="page-stats">
+          <header class="stats-header">
+            <h1 class="stats-title">WRITING ANALYTICS</h1>
+            <span class="stats-period">THIS WEEK</span>
+          </header>
+
+          <div class="stats-cards">
+            <div class="stat-card">
+              <span class="stat-label">TOTAL WRITTEN</span>
+              <strong class="stat-value">44,550</strong>
+              <span class="stat-unit">words across all files</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">DAILY AVERAGE</span>
+              <strong class="stat-value">1,024</strong>
+              <span class="stat-unit">words per session</span>
+            </div>
+          </div>
+
+          <section class="weekly-cadence">
+            <h2 class="section-heading">WEEKLY CADENCE</h2>
+            <div class="cadence-chart">
+              <div class="bar-group">
+                <div class="bar" style="height: 55%"></div>
+                <span>M</span>
+              </div>
+              <div class="bar-group">
+                <div class="bar" style="height: 70%"></div>
+                <span>T</span>
+              </div>
+              <div class="bar-group">
+                <div class="bar" style="height: 85%"></div>
+                <span>W</span>
+              </div>
+              <div class="bar-group">
+                <div class="bar" style="height: 100%"></div>
+                <span>T</span>
+              </div>
+              <div class="bar-group">
+                <div class="bar" style="height: 60%"></div>
+                <span>F</span>
+              </div>
+              <div class="bar-group">
+                <div class="bar" style="height: 40%"></div>
+                <span>S</span>
+              </div>
+              <div class="bar-group">
+                <div class="bar" style="height: 30%"></div>
+                <span>S</span>
+              </div>
+            </div>
+            <p class="cadence-caption">Best writing day: Thursday (1,450 words)</p>
+          </section>
+
+          <section class="milestones">
+            <h2 class="section-heading">MILESTONES ACHIEVED</h2>
+            <div class="milestone-item">
+              <span class="milestone-icon">🏆</span>
+              <div class="milestone-text">
+                <strong>The Gatsby Breakthrough</strong>
+                <span>Wrote 5,000 words in a single week</span>
+              </div>
+            </div>
+            <div class="milestone-item">
+              <span class="milestone-icon">🖋</span>
+              <div class="milestone-text">
+                <strong>Steady Inkwell</strong>
+                <span>Maintained active sync for 7 consecutive days</span>
+              </div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <!-- Bottom Navigation -->
+      <nav class="bottom-nav">
+        <button class="nav-tab active" data-page="home">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zm-9 9h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
+          <span>Manuscripts</span>
+        </button>
+        <button class="nav-tab" data-page="project">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h12v2H3v-2z"/></svg>
+          <span>Outline</span>
+        </button>
+        <button class="nav-tab" data-page="writing">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <span>Write</span>
+        </button>
+        <button class="nav-tab" data-page="stats">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/></svg>
+          <span>Insights</span>
+        </button>
+      </nav>
+
+      <div class="home-indicator">
+        <div class="indicator-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
