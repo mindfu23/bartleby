@@ -3,11 +3,22 @@ import { ProjectSession, type BinderNode, type MovePosition } from './app/sessio
 import { exportZip } from './app/zipio'
 import { writeProjectDelta } from './app/fsio'
 import { saveRecovery, loadRecovery, clearRecovery, type RecoveryRecord } from './app/recovery'
-import { uploadProject, bartlebyCopyPath } from './app/dropboxio'
+import {
+  uploadProject,
+  saveProjectInPlace,
+  projectHashes,
+  hashesEqual,
+  copyFolder,
+  bartlebyCopyPath,
+  conflictCopyPath,
+  backupCopyPath,
+  DropboxError,
+} from './app/dropboxio'
 import OpenScreen from './ui/OpenScreen'
 import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
 import AddDocumentDialog from './ui/AddDocumentDialog'
+import MoveDialog from './ui/MoveDialog'
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -26,10 +37,17 @@ export default function App() {
   const [selected, setSelected] = useState<BinderNode | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
+  const [showMove, setShowMove] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null)
-  // Set when the project was opened from Dropbox; enables "Save to Dropbox".
-  const [dropbox, setDropbox] = useState<{ token: string; scrivPath: string } | null>(null)
+  // Set when the project was opened from Dropbox; enables Dropbox saves. `base`
+  // is the server file-hash map at open time, for conflict detection.
+  const [dropbox, setDropbox] = useState<{
+    token: string
+    scrivPath: string
+    base: Map<string, string>
+  } | null>(null)
+  const [showDbxSave, setShowDbxSave] = useState(false)
   // bump to re-render after session mutations (session is a mutable class instance)
   const [version, setVersion] = useState(0)
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
@@ -99,10 +117,10 @@ export default function App() {
           setSelected(null)
           setRecovery(null)
         }}
-        onOpenDropbox={(s, token, scrivPath) => {
+        onOpenDropbox={(s, token, scrivPath, baseHashes) => {
           setSession(s)
           setDirHandle(null)
-          setDropbox({ token, scrivPath })
+          setDropbox({ token, scrivPath, base: baseHashes })
           setBackupDone(false)
           setSaveStatus(null)
           setSelected(null)
@@ -185,6 +203,55 @@ export default function App() {
       if (node) setSelected(node)
     } catch {
       // illegal move (e.g. into its own descendant) — leave the binder unchanged
+    }
+  }
+
+  // Touch-friendly move: pick a destination folder (or root) + top/bottom, then
+  // translate to a moveItem ref/position. Mirrors the mouse drag-and-drop.
+  const moveToLocation = (destFolderUuid: string | null, position: 'top' | 'bottom'): string | null => {
+    if (!selected) return null
+    try {
+      const roots = session.binderTree()
+      let refUuid: string
+      let pos: MovePosition
+      if (destFolderUuid) {
+        const folder = findByUuid(destFolderUuid)
+        if (!folder) return 'Destination folder not found.'
+        if (position === 'bottom' || folder.children.length === 0) {
+          refUuid = destFolderUuid
+          pos = 'inside'
+        } else {
+          refUuid = folder.children[0].uuid
+          pos = 'before'
+        }
+      } else if (position === 'top') {
+        refUuid = roots[0].uuid
+        pos = 'before'
+      } else {
+        refUuid = roots[roots.length - 1].uuid
+        pos = 'after'
+      }
+      if (refUuid === selected.uuid) return null // already there
+      session.moveItem(selected.uuid, refUuid, pos)
+      refresh()
+      const node = findByUuid(selected.uuid)
+      if (node) setSelected(node)
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  const trashSelected = () => {
+    if (!selected) return
+    try {
+      session.moveToTrash(selected.uuid)
+      refresh()
+      setSelected(null)
+      setSaveStatus(`Moved “${selected.title || 'item'}” to Trash`)
+      setTimeout(() => setSaveStatus(null), 4000)
+    } catch (e) {
+      setSaveStatus(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -287,20 +354,60 @@ export default function App() {
     }
   }
 
-  const saveToDropbox = async () => {
+  const basename = (p: string) => p.slice(p.lastIndexOf('/') + 1)
+
+  const afterDropboxSave = (msg: string) => {
+    session.markSaved()
+    refresh()
+    void clearRecovery()
+    setRecovery(null)
+    setSaveStatus(msg)
+    setTimeout(() => setSaveStatus(null), 7000)
+  }
+
+  const dropboxErr = (e: unknown): string =>
+    e instanceof DropboxError && /→ 401/.test(e.message)
+      ? 'Dropbox token expired — Close and reconnect with a fresh token.'
+      : `Dropbox save failed: ${e instanceof Error ? e.message : String(e)}`
+
+  const saveDropboxCopy = async () => {
     if (!dropbox) return
+    setShowDbxSave(false)
     const dest = bartlebyCopyPath(dropbox.scrivPath)
-    setSaveStatus('Saving to Dropbox…')
+    setSaveStatus('Saving a copy to Dropbox…')
     try {
       await uploadProject(dropbox.token, dest, session.exportFiles())
-      session.markSaved()
-      refresh()
-      void clearRecovery()
-      setRecovery(null)
-      setSaveStatus(`Saved to Dropbox → ${dest.slice(dest.lastIndexOf('/') + 1)} ✓`)
-      setTimeout(() => setSaveStatus(null), 6000)
+      afterDropboxSave(`Saved copy → ${basename(dest)} ✓`)
     } catch (e) {
-      setSaveStatus(`Dropbox save failed: ${e instanceof Error ? e.message : String(e)}`)
+      setSaveStatus(dropboxErr(e))
+    }
+  }
+
+  const saveDropboxInPlace = async () => {
+    if (!dropbox) return
+    setShowDbxSave(false)
+    setSaveStatus('Checking Dropbox for other changes…')
+    try {
+      // Conflict: did the project change on another device since we opened it?
+      const current = await projectHashes(dropbox.token, dropbox.scrivPath)
+      if (!hashesEqual(current, dropbox.base)) {
+        const dest = conflictCopyPath(dropbox.scrivPath)
+        setSaveStatus('Changed elsewhere — writing a conflict copy…')
+        await uploadProject(dropbox.token, dest, session.exportFiles())
+        setSaveStatus(`⚠ Project changed on another device — saved to ${basename(dest)}; original untouched.`)
+        return
+      }
+      if (!backupDone) {
+        setSaveStatus('Backing up the original first…')
+        await copyFolder(dropbox.token, dropbox.scrivPath, backupCopyPath(dropbox.scrivPath))
+        setBackupDone(true)
+      }
+      setSaveStatus('Saving in place…')
+      await saveProjectInPlace(dropbox.token, dropbox.scrivPath, session.exportFiles())
+      setDropbox({ ...dropbox, base: await projectHashes(dropbox.token, dropbox.scrivPath) })
+      afterDropboxSave('Saved in place to Dropbox ✓')
+    } catch (e) {
+      setSaveStatus(dropboxErr(e))
     }
   }
 
@@ -362,7 +469,7 @@ export default function App() {
           )}
           {dropbox && (
             <button
-              onClick={saveToDropbox}
+              onClick={() => setShowDbxSave(true)}
               className="rounded bg-sky-700 px-3 py-1.5 text-sm font-medium text-sky-50 hover:bg-sky-600"
             >
               {session.isDirty() ? '● ' : ''}Save to Dropbox
@@ -421,6 +528,8 @@ export default function App() {
             onAddComment={addComment}
             onEditComment={editComment}
             onDeleteComment={deleteComment}
+            onMoveRequest={() => setShowMove(true)}
+            onTrash={trashSelected}
           />
         </main>
       </div>
@@ -432,6 +541,54 @@ export default function App() {
           onAdd={addDocument}
           onClose={() => setShowAdd(false)}
         />
+      )}
+
+      {showMove && selected && (
+        <MoveDialog
+          roots={session.binderTree()}
+          node={selected}
+          onMove={moveToLocation}
+          onClose={() => setShowMove(false)}
+        />
+      )}
+
+      {showDbxSave && dropbox && (
+        <div
+          className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowDbxSave(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-stone-700 bg-stone-900 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium text-stone-100">Save to Dropbox</h3>
+            <p className="mt-1 text-xs text-stone-500">{basename(dropbox.scrivPath)}</p>
+            <button
+              onClick={saveDropboxCopy}
+              className="mt-4 w-full rounded-lg border border-stone-700 px-4 py-3 text-left hover:bg-stone-800"
+            >
+              <div className="text-sm font-medium text-stone-100">Save a copy (safe)</div>
+              <div className="text-xs text-stone-400">
+                Writes {basename(bartlebyCopyPath(dropbox.scrivPath))} — your original is never touched.
+              </div>
+            </button>
+            <button
+              onClick={saveDropboxInPlace}
+              className="mt-2 w-full rounded-lg border border-sky-800 bg-sky-950/40 px-4 py-3 text-left hover:bg-sky-900/40"
+            >
+              <div className="text-sm font-medium text-sky-100">Save in place (overwrite original)</div>
+              <div className="text-xs text-stone-400">
+                Backs up the original once, checks for changes made elsewhere (→ conflict copy if so), then overwrites.
+              </div>
+            </button>
+            <button
+              onClick={() => setShowDbxSave(false)}
+              className="mt-4 w-full rounded px-3 py-1.5 text-sm text-stone-400 hover:bg-stone-800"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

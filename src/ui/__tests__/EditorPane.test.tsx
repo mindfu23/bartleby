@@ -34,6 +34,8 @@ const base = {
   onAddComment: () => null,
   onEditComment: () => {},
   onDeleteComment: () => {},
+  onMoveRequest: () => {},
+  onTrash: () => {},
 }
 
 describe('EditorPane (render)', () => {
@@ -84,7 +86,7 @@ describe('EditorPane (render)', () => {
       />,
     )
     expect(screen.getByText('a note')).toBeTruthy()
-    fireEvent.click(screen.getByText('Delete'))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete comment' }))
     expect(onDeleteComment).toHaveBeenCalledWith('C1')
   })
 

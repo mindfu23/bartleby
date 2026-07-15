@@ -9,6 +9,7 @@ import {
   UUID_SCENE2,
   UUID_EMPTY,
   UUID_DRAFT,
+  UUID_TRASH,
 } from '../../core/__tests__/fixture'
 
 describe('ProjectSession', () => {
@@ -209,6 +210,17 @@ describe('ProjectSession', () => {
     expect(s.getComments(UUID_SCENE1)).toHaveLength(0)
     expect(s.readDoc(UUID_SCENE1)).toBe(proj) // text restored after unlink
     expect(s.exportFiles().has(`Files/Data/${UUID_SCENE1}/content.comments`)).toBe(false)
+  })
+
+  it('moveToTrash relocates an item into the Trash folder', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.moveToTrash(UUID_SCENE1)
+    const trash = s.binderTree().find((n) => n.uuid === UUID_TRASH)!
+    expect(trash.children.map((n) => n.uuid)).toContain(UUID_SCENE1)
+    expect(s.binderTree().find((n) => n.uuid === UUID_DRAFT)!.children.map((n) => n.uuid)).not.toContain(
+      UUID_SCENE1,
+    )
+    expect(s.isDirty()).toBe(true)
   })
 
   it('rejects renaming a nonexistent item', () => {

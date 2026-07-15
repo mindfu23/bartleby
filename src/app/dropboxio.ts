@@ -23,12 +23,31 @@ export function projectKey(parentPath: string, fullPath: string): string {
   return fullPath.slice(parentPath.length + 1)
 }
 
-/** Non-destructive save target: `/…/foo.scriv` → `/…/foo-bartleby.scriv`. */
-export function bartlebyCopyPath(scrivPath: string): string {
+/** `/…/foo.scriv` → `/…/foo <suffix>.scriv` (sibling path with a name suffix). */
+export function siblingPath(scrivPath: string, suffix: string): string {
   const slash = scrivPath.lastIndexOf('/')
   const parent = scrivPath.slice(0, slash)
   const name = scrivPath.slice(slash + 1).replace(/\.scriv$/i, '')
-  return `${parent}/${name}-bartleby.scriv`
+  return `${parent}/${name}${suffix}.scriv`
+}
+/** Non-destructive save target. */
+export const bartlebyCopyPath = (p: string) => siblingPath(p, '-bartleby')
+export const conflictCopyPath = (p: string) => siblingPath(p, ' (Bartleby conflict)')
+export const backupCopyPath = (p: string) => siblingPath(p, ' (Bartleby backup)')
+
+/** Do two path→content-hash maps describe the same folder state? */
+export function hashesEqual(a: Map<string, string>, b: Map<string, string>): boolean {
+  if (a.size !== b.size) return false
+  for (const [k, v] of a) if (b.get(k) !== v) return false
+  return true
+}
+
+/** Upload order rank: content first, then `.scrivx`, then `docs.checksum` last —
+ *  so an interrupted save never leaves a binder pointing at not-yet-uploaded docs. */
+export function uploadRank(rel: string): number {
+  if (rel.endsWith('docs.checksum')) return 2
+  if (rel.toLowerCase().endsWith('.scrivx')) return 1
+  return 0
 }
 
 export class DropboxError extends Error {}
@@ -79,41 +98,79 @@ export async function listScrivProjects(token: string, root: string): Promise<Dr
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** Download a `.scriv` into a root-prefixed path→bytes map for ProjectSession.open. */
-export async function downloadProject(
-  token: string,
-  scrivPath: string,
-): Promise<Map<string, Uint8Array>> {
-  const parent = scrivPath.slice(0, scrivPath.lastIndexOf('/'))
+/** Current server file→content-hash map for a project (base for conflict detection). */
+export async function projectHashes(token: string, scrivPath: string): Promise<Map<string, string>> {
   const files = (await listAll(token, scrivPath)).filter((e) => e['.tag'] === 'file')
-  const map = new Map<string, Uint8Array>()
-  for (const f of files) {
+  return new Map(files.map((f) => [f.path_lower as string, f.content_hash as string]))
+}
+
+export interface DownloadedProject {
+  files: Map<string, Uint8Array>
+  /** path_lower → content_hash at download time, for later conflict detection. */
+  hashes: Map<string, string>
+}
+
+/** Download a `.scriv` into a root-prefixed path→bytes map + its base hashes. */
+export async function downloadProject(token: string, scrivPath: string): Promise<DownloadedProject> {
+  const parent = scrivPath.slice(0, scrivPath.lastIndexOf('/'))
+  const entries = (await listAll(token, scrivPath)).filter((e) => e['.tag'] === 'file')
+  const files = new Map<string, Uint8Array>()
+  const hashes = new Map<string, string>()
+  for (const f of entries) {
     const res = await fetch(`${CONTENT}/files/download`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': apiArg({ path: f.path_display }) },
     })
     if (!res.ok) throw new DropboxError(`download ${f.name} → ${res.status}`)
-    map.set(projectKey(parent, f.path_display), new Uint8Array(await res.arrayBuffer()))
+    files.set(projectKey(parent, f.path_display), new Uint8Array(await res.arrayBuffer()))
+    hashes.set(f.path_lower, f.content_hash)
   }
-  return map
+  return { files, hashes }
 }
 
-/** Upload an exported (root-relative) file map into a Dropbox `.scriv` folder. */
+async function uploadOne(token: string, path: string, bytes: Uint8Array): Promise<void> {
+  const res = await fetch(`${CONTENT}/files/upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Dropbox-API-Arg': apiArg({ path, mode: 'overwrite', mute: true }),
+      'Content-Type': 'application/octet-stream',
+    },
+    body: bytes,
+  })
+  if (!res.ok) throw new DropboxError(`upload ${path} → ${res.status}: ${await res.text()}`)
+}
+
+/** Upload an exported map into a fresh/copy destination (no orphan cleanup needed). */
 export async function uploadProject(
   token: string,
   destScrivPath: string,
   files: Map<string, Uint8Array>,
 ): Promise<void> {
-  for (const [rel, bytes] of files) {
-    const res = await fetch(`${CONTENT}/files/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Dropbox-API-Arg': apiArg({ path: `${destScrivPath}/${rel}`, mode: 'overwrite', mute: true }),
-        'Content-Type': 'application/octet-stream',
-      },
-      body: bytes,
-    })
-    if (!res.ok) throw new DropboxError(`upload ${rel} → ${res.status}: ${await res.text()}`)
+  for (const [rel, bytes] of files) await uploadOne(token, `${destScrivPath}/${rel}`, bytes)
+}
+
+/** Server-side copy of a whole folder (cheap backup). Auto-renames on collision. */
+export async function copyFolder(token: string, from: string, to: string): Promise<void> {
+  await rpc(token, '/files/copy_v2', { from_path: from, to_path: to, autorename: true })
+}
+
+/**
+ * Overwrite a project in place: ordered upload (content → scrivx → docs.checksum),
+ * then delete server files no longer in the export (stale caches, removed docs).
+ */
+export async function saveProjectInPlace(
+  token: string,
+  scrivPath: string,
+  files: Map<string, Uint8Array>,
+): Promise<void> {
+  const desired = new Set([...files.keys()].map((rel) => `${scrivPath}/${rel}`.toLowerCase()))
+  const serverBefore = (await listAll(token, scrivPath)).filter((e) => e['.tag'] === 'file')
+
+  const ordered = [...files.entries()].sort(([a], [b]) => uploadRank(a) - uploadRank(b))
+  for (const [rel, bytes] of ordered) await uploadOne(token, `${scrivPath}/${rel}`, bytes)
+
+  for (const f of serverBefore) {
+    if (!desired.has(f.path_lower)) await rpc(token, '/files/delete_v2', { path: f.path_display })
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { BinderNode, DocComment } from '../app/session'
-import { isFolderType } from './BinderTree'
+import { isFolderType, isFixedRoot } from './BinderTree'
 
 const AUTOSAVE_IDLE_MS = 2000
 
@@ -14,6 +14,8 @@ interface Props {
   onAddComment: (start: number, end: number, text: string) => string | null
   onEditComment: (id: string, text: string) => void
   onDeleteComment: (id: string) => void
+  onMoveRequest: () => void
+  onTrash: () => void
 }
 
 /** Scrivener stores comment colours as "r g b" floats 0–1. */
@@ -28,6 +30,7 @@ function scrivColorToCss(color: string): string {
 
 export default function EditorPane({
   node, text, comments, onSave, onRename, onAddComment, onEditComment, onDeleteComment,
+  onMoveRequest, onTrash,
 }: Props) {
   const [draft, setDraft] = useState(text)
   const [titleDraft, setTitleDraft] = useState(node?.title ?? '')
@@ -161,7 +164,24 @@ export default function EditorPane({
           }`}
         />
         <span className="hidden shrink-0 truncate text-xs text-stone-600 sm:inline">{node.uuid}</span>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {!isFixedRoot(node.type) && (
+            <>
+              <button
+                onClick={onMoveRequest}
+                className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+              >
+                Move
+              </button>
+              <button
+                onClick={onTrash}
+                title="Move to Trash (recoverable)"
+                className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-300 hover:bg-red-950 hover:text-red-200"
+              >
+                Delete
+              </button>
+            </>
+          )}
           {!isFolder && (
             <button
               onMouseDown={(e) => e.preventDefault()} // keep the textarea's selection
@@ -274,6 +294,7 @@ export default function EditorPane({
                     Edit
                   </button>
                   <button
+                    aria-label="Delete comment"
                     onClick={() => onDeleteComment(c.id)}
                     className="shrink-0 text-xs text-stone-500 hover:text-red-400"
                   >

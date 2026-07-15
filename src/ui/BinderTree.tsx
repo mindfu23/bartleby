@@ -19,6 +19,11 @@ export function isFolderType(type: string): boolean {
   return FOLDER_TYPES.has(type)
 }
 
+/** Top-level containers Scrivener requires — can't be moved or trashed. */
+export function isFixedRoot(type: string): boolean {
+  return FIXED_ROOT_TYPES.has(type)
+}
+
 interface DropTarget {
   uuid: string
   position: MovePosition

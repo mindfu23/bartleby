@@ -374,6 +374,14 @@ export class ProjectSession {
     this.binderDirty = true
   }
 
+  /** Move an item into the project's Trash folder — Scrivener's "delete" (recoverable). */
+  moveToTrash(uuid: string): void {
+    const trash = this.model.roots.find((n) => n.type === 'TrashFolder')
+    if (!trash) throw new SessionError('This project has no Trash folder.')
+    if (uuid === trash.uuid) throw new SessionError('Cannot trash the Trash folder.')
+    this.moveItem(uuid, trash.uuid, 'inside')
+  }
+
   /** The project exactly as it was opened, for a restorable backup zip. */
   exportOriginalFiles(): Map<string, Uint8Array> {
     return new Map(this.originalFiles)

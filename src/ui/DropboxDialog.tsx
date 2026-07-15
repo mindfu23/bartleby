@@ -3,7 +3,12 @@ import { ProjectSession } from '../app/session'
 import { whoami, listScrivProjects, downloadProject, type DropboxProject } from '../app/dropboxio'
 
 interface Props {
-  onOpen: (session: ProjectSession, token: string, scrivPath: string) => void
+  onOpen: (
+    session: ProjectSession,
+    token: string,
+    scrivPath: string,
+    baseHashes: Map<string, string>,
+  ) => void
   onClose: () => void
 }
 
@@ -33,8 +38,8 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const files = await downloadProject(token.trim(), p.path)
-      onOpen(ProjectSession.open(files), token.trim(), p.path)
+      const { files, hashes } = await downloadProject(token.trim(), p.path)
+      onOpen(ProjectSession.open(files), token.trim(), p.path, hashes)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setBusy(false)

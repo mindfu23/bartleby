@@ -7,7 +7,12 @@ import DropboxDialog from './DropboxDialog'
 
 interface Props {
   onOpen: (session: ProjectSession, dirHandle: FileSystemDirectoryHandle | null) => void
-  onOpenDropbox: (session: ProjectSession, token: string, scrivPath: string) => void
+  onOpenDropbox: (
+    session: ProjectSession,
+    token: string,
+    scrivPath: string,
+    baseHashes: Map<string, string>,
+  ) => void
   recovery: RecoveryRecord | null
   onRestore: () => void
   onDiscard: () => void
@@ -133,9 +138,9 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
 
       {showDropbox && (
         <DropboxDialog
-          onOpen={(s, token, scrivPath) => {
+          onOpen={(s, token, scrivPath, baseHashes) => {
             setShowDropbox(false)
-            onOpenDropbox(s, token, scrivPath)
+            onOpenDropbox(s, token, scrivPath, baseHashes)
           }}
           onClose={() => setShowDropbox(false)}
         />

@@ -361,6 +361,30 @@ text model since comments are anchored metadata, not inline rendering).
   `scrivcmt://` field-anchor mechanism round-trips into real Scrivener. Images
   still Phase 2.
 
+### FEATURE BATCH (2026-07-12) — modular, browser-testable, deployed to prod
+
+Added as independent modules (no cross-cascade), 94 tests, live at
+bartleby-scriv.netlify.app:
+- **Touch-friendly move** (`MoveDialog.tsx` + App `moveToLocation`): select item →
+  Move → pick destination folder/root + top/bottom. Works on touch (HTML5 drag
+  doesn't fire on touch); mouse drag-and-drop kept for desktop. Move/Delete
+  buttons live in the **editor header** now (contextual, declutters top bar).
+- **Delete = move to Trash** (`session.moveToTrash`, Scrivener-faithful/recoverable).
+- **Dropbox save subsystem** (`dropboxio.ts` + App save dialog): two modes —
+  "Save a copy" (safe `-bartleby`, default) and "Save in place" (opt-in). In-place:
+  **conflict detection** (base file-hash map captured at download; re-list on save,
+  mismatch → write `(Bartleby conflict).scriv`, original untouched) · **backup-first**
+  (server-side `copy_v2` to `(Bartleby backup).scriv`, once/session) · **ordered
+  upload** (content → scrivx → docs.checksum last) · **orphan cleanup** (delete
+  server files not in export = stale caches/removed docs) · **token-expiry** (401 →
+  clear reconnect message).
+- **Mobile pass**: item actions moved to editor header; header flex-wrap; (earlier:
+  dark html/body bg + overflow-x-hidden).
+- Deferred (would cascade, per plan): rich-text editor, undo/redo, OAuth PKCE.
+- ⚠️ Network orchestration (in-place save conflict/backup/orphan) unit-tested only
+  for pure helpers (hashesEqual/paths/uploadRank); the live Dropbox flow is
+  user-tested on device. In-place save is destructive-but-guarded — test on a copy.
+
 ### DROPBOX WEB PROTOTYPE BUILT (2026-07-12) — testable on Android via browser
 
 `src/app/dropboxio.ts` (browser adapter: whoami/listScrivProjects/downloadProject/
