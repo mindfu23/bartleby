@@ -5,9 +5,10 @@
  * round-trip is already proven in Node — the only browser-specific unknown is
  * CORS, which Dropbox's API supports.
  *
- * The access token lives only in memory for the session (never persisted). This
- * is the prototype path; production uses OAuth PKCE with the same endpoints.
+ * Credentials come from dropboxauth (OAuth PKCE + self-renewing access tokens).
  */
+import { importZip } from './zipio'
+
 const API = 'https://api.dropboxapi.com/2'
 const CONTENT = 'https://content.dropboxapi.com/2'
 
@@ -70,6 +71,33 @@ async function rpc(token: string, path: string, body: unknown): Promise<any> {
   return res.json()
 }
 
+/** Run `fn` over `items` with at most `limit` in flight. Order is preserved. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length)
+  let next = 0
+  const worker = async () => {
+    for (;;) {
+      const i = next++
+      if (i >= items.length) return
+      out[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return out
+}
+
+/** One folder level, following pagination. Does NOT recurse. */
+async function listFolder(token: string, path: string): Promise<any[]> {
+  const out: any[] = []
+  let r = await rpc(token, '/files/list_folder', { path, recursive: false, limit: 2000 })
+  out.push(...r.entries)
+  while (r.has_more) {
+    r = await rpc(token, '/files/list_folder/continue', { cursor: r.cursor })
+    out.push(...r.entries)
+  }
+  return out
+}
+
 async function listAll(token: string, root: string): Promise<any[]> {
   const out: any[] = []
   let r = await rpc(token, '/files/list_folder', { path: root, recursive: true, limit: 2000 })
@@ -98,12 +126,37 @@ export interface DropboxProject {
 }
 
 /** List the `.scriv` projects under a Dropbox folder. */
+/** How many folder levels below `root` to search for projects. */
+const SEARCH_DEPTH = 4
+
+/**
+ * Find `.scriv` projects under `root`.
+ *
+ * Walks level-by-level and **never descends into a `.scriv` package** — a
+ * recursive listing would enumerate every content.rtf inside every project
+ * (thousands of entries, many pages) just to find folders by name. Sibling
+ * folders are listed concurrently, so this is a few fast requests instead of a
+ * full-tree crawl.
+ */
 export async function listScrivProjects(token: string, root: string): Promise<DropboxProject[]> {
-  const entries = await listAll(token, root)
-  return entries
-    .filter((e) => e['.tag'] === 'folder' && String(e.name).toLowerCase().endsWith('.scriv'))
-    .map((e) => ({ path: e.path_display as string, name: e.name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  const found: DropboxProject[] = []
+  let level = [root]
+  for (let depth = 0; depth <= SEARCH_DEPTH && level.length > 0; depth++) {
+    const batches = await mapLimit(level, 6, (p) => listFolder(token, p))
+    const next: string[] = []
+    for (const entries of batches) {
+      for (const e of entries) {
+        if (e['.tag'] !== 'folder') continue
+        if (String(e.name).toLowerCase().endsWith('.scriv')) {
+          found.push({ path: e.path_display as string, name: e.name as string })
+        } else {
+          next.push(e.path_display as string) // ordinary folder — look inside
+        }
+      }
+    }
+    level = next
+  }
+  return found.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /** Current server file→content-hash map for a project (base for conflict detection). */
@@ -119,20 +172,57 @@ export interface DownloadedProject {
 }
 
 /** Download a `.scriv` into a root-prefixed path→bytes map + its base hashes. */
+async function downloadOne(token: string, path: string): Promise<Uint8Array> {
+  const res = await fetch(`${CONTENT}/files/download`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': apiArg({ path }) },
+  })
+  if (!res.ok) throw new DropboxError(`download ${path} → ${res.status}`)
+  return new Uint8Array(await res.arrayBuffer())
+}
+
+/** The whole folder in ONE request. Capped by Dropbox at 20GB / 10,000 files. */
+async function downloadFolderZip(token: string, path: string): Promise<ArrayBuffer> {
+  const res = await fetch(`${CONTENT}/files/download_zip`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': apiArg({ path }) },
+  })
+  if (!res.ok) throw new DropboxError(`download_zip → ${res.status}: ${await res.text()}`)
+  return res.arrayBuffer()
+}
+
+/**
+ * Download a project.
+ *
+ * Fetches the package as a single zip rather than one request per file — a
+ * .scriv holds a content.rtf (plus sidecars) for every document, so per-file
+ * downloads meant dozens of sequential round-trips, which dominated load time
+ * on mobile. The listing still runs, but only for content hashes (conflict
+ * detection), which the zip can't carry.
+ *
+ * Falls back to parallel per-file downloads if the zip route fails or comes
+ * back without a .scrivx (oversized folder, API change) — correctness first.
+ * Key layout differs between the two routes, but ProjectSession.open()
+ * normalizes the `.scriv/` root prefix either way.
+ */
 export async function downloadProject(token: string, scrivPath: string): Promise<DownloadedProject> {
   const parent = scrivPath.slice(0, scrivPath.lastIndexOf('/'))
   const entries = (await listAll(token, scrivPath)).filter((e) => e['.tag'] === 'file')
-  const files = new Map<string, Uint8Array>()
   const hashes = new Map<string, string>()
-  for (const f of entries) {
-    const res = await fetch(`${CONTENT}/files/download`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Dropbox-API-Arg': apiArg({ path: f.path_display }) },
-    })
-    if (!res.ok) throw new DropboxError(`download ${f.name} → ${res.status}`)
-    files.set(projectKey(parent, f.path_display), new Uint8Array(await res.arrayBuffer()))
-    hashes.set(f.path_lower, f.content_hash)
+  for (const f of entries) hashes.set(f.path_lower, f.content_hash)
+
+  try {
+    const files = await importZip(await downloadFolderZip(token, scrivPath))
+    const usable = [...files.keys()].some((p) => p.toLowerCase().endsWith('.scrivx'))
+    if (usable) return { files, hashes }
+  } catch {
+    // fall through to per-file download
   }
+
+  const files = new Map<string, Uint8Array>()
+  await mapLimit(entries, 8, async (f) => {
+    files.set(projectKey(parent, f.path_display), await downloadOne(token, f.path_display))
+  })
   return { files, hashes }
 }
 

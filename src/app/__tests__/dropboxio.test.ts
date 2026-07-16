@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   apiArg,
   projectKey,
@@ -7,6 +7,8 @@ import {
   backupCopyPath,
   hashesEqual,
   uploadRank,
+  packageBaseName,
+  listScrivProjects,
 } from '../dropboxio'
 
 describe('dropboxio helpers', () => {
@@ -50,5 +52,70 @@ describe('dropboxio helpers', () => {
   it('bartlebyCopyPath makes a non-destructive sibling target', () => {
     expect(bartlebyCopyPath('/ebooks/book/foo.scriv')).toBe('/ebooks/book/foo-bartleby.scriv')
     expect(bartlebyCopyPath('/x/Hyperspace Radio.scriv')).toBe('/x/Hyperspace Radio-bartleby.scriv')
+  })
+})
+
+describe('packageBaseName', () => {
+  it('strips the folder path and .scriv extension', () => {
+    expect(packageBaseName('/ebooks/Hyperspace Radio/Novel-bartleby.scriv')).toBe('Novel-bartleby')
+    expect(packageBaseName('/ebooks/Novel (Bartleby conflict).scriv')).toBe(
+      'Novel (Bartleby conflict)',
+    )
+  })
+})
+
+/**
+ * The listing used to be `list_folder recursive:true`, which enumerated every
+ * file inside every project just to find folders by name — the cause of the
+ * slow project list (2026-07-16).
+ */
+describe('listScrivProjects', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** Fake Dropbox: a folder tree, recording which paths got listed. */
+  const stubDropbox = (tree: Record<string, { name: string; folder: boolean }[]>) => {
+    const listed: string[] = []
+    vi.stubGlobal('fetch', async (_url: string, init: any) => {
+      const body = JSON.parse(init.body)
+      listed.push(body.path)
+      const kids = tree[body.path] ?? []
+      return {
+        ok: true,
+        json: async () => ({
+          entries: kids.map((k) => ({
+            '.tag': k.folder ? 'folder' : 'file',
+            name: k.name,
+            path_display: `${body.path}/${k.name}`,
+          })),
+          has_more: false,
+        }),
+      }
+    })
+    return listed
+  }
+
+  it('finds projects nested in ordinary folders, without opening the packages', async () => {
+    const listed = stubDropbox({
+      '/ebooks': [
+        { name: 'Hyperspace Radio', folder: true },
+        { name: 'notes.txt', folder: false },
+      ],
+      '/ebooks/Hyperspace Radio': [{ name: 'Novel.scriv', folder: true }],
+      // If this ever gets listed, we've crawled inside a package.
+      '/ebooks/Hyperspace Radio/Novel.scriv': [{ name: 'Files', folder: true }],
+    })
+    const found = await listScrivProjects('t', '/ebooks')
+    expect(found.map((p) => p.name)).toEqual(['Novel.scriv'])
+    expect(listed).not.toContain('/ebooks/Hyperspace Radio/Novel.scriv')
+  })
+
+  it('never asks Dropbox to recurse', async () => {
+    let recursed = false
+    vi.stubGlobal('fetch', async (_url: string, init: any) => {
+      if (JSON.parse(init.body).recursive) recursed = true
+      return { ok: true, json: async () => ({ entries: [], has_more: false }) }
+    })
+    await listScrivProjects('t', '/ebooks')
+    expect(recursed).toBe(false)
   })
 })
