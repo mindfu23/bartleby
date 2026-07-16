@@ -12,6 +12,7 @@ import {
   bartlebyCopyPath,
   conflictCopyPath,
   backupCopyPath,
+  packageBaseName,
   DropboxError,
 } from './app/dropboxio'
 import { getAccessToken, DropboxAuthError } from './app/dropboxauth'
@@ -386,7 +387,7 @@ export default function App() {
     const dest = bartlebyCopyPath(dropbox.scrivPath)
     setSaveStatus('Saving a copy to Dropbox…')
     try {
-      await uploadProject(await getAccessToken(), dest, session.exportFiles())
+      await uploadProject(await getAccessToken(), dest, session.exportFiles(packageBaseName(dest)))
       afterDropboxSave(`Saved copy → ${basename(dest)} ✓`)
     } catch (e) {
       setSaveStatus(dropboxErr(e))
@@ -404,7 +405,7 @@ export default function App() {
       if (!hashesEqual(current, dropbox.base)) {
         const dest = conflictCopyPath(dropbox.scrivPath)
         setSaveStatus('Changed elsewhere — writing a conflict copy…')
-        await uploadProject(token, dest, session.exportFiles())
+        await uploadProject(token, dest, session.exportFiles(packageBaseName(dest)))
         setSaveStatus(`⚠ Project changed on another device — saved to ${basename(dest)}; original untouched.`)
         return
       }
@@ -414,7 +415,11 @@ export default function App() {
         setBackupDone(true)
       }
       setSaveStatus('Saving in place…')
-      await saveProjectInPlace(token, dropbox.scrivPath, session.exportFiles())
+      await saveProjectInPlace(
+        token,
+        dropbox.scrivPath,
+        session.exportFiles(packageBaseName(dropbox.scrivPath)),
+      )
       setDropbox({ ...dropbox, base: await projectHashes(token, dropbox.scrivPath) })
       afterDropboxSave('Saved in place to Dropbox ✓')
     } catch (e) {

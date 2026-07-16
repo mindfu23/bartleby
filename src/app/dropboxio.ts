@@ -30,6 +30,14 @@ export function siblingPath(scrivPath: string, suffix: string): string {
   const name = scrivPath.slice(slash + 1).replace(/\.scriv$/i, '')
   return `${parent}/${name}${suffix}.scriv`
 }
+/**
+ * Base name of a `.scriv` package path, without extension — the name the
+ * package's `.scrivx` must match, or Scrivener mints a rival binder file.
+ * `/ebooks/Novel-bartleby.scriv` → `Novel-bartleby`.
+ */
+export const packageBaseName = (p: string) =>
+  p.slice(p.lastIndexOf('/') + 1).replace(/\.scriv$/i, '')
+
 /** Non-destructive save target. */
 export const bartlebyCopyPath = (p: string) => siblingPath(p, '-bartleby')
 export const conflictCopyPath = (p: string) => siblingPath(p, ' (Bartleby conflict)')

@@ -61,6 +61,8 @@ export type { BinderNode, MovePosition }
 export interface SessionSnapshot {
   projectName: string
   scrivxPath: string
+  /** Optional for back-compat with snapshots written before conflict handling. */
+  staleScrivxPaths?: string[]
   files: Map<string, Uint8Array>
   originalFiles: Map<string, Uint8Array>
   dirtyDocs: string[]
@@ -89,6 +91,8 @@ export class ProjectSession {
   /** Snapshot of the project as opened, for pre-save backups. Bytes are never mutated in place. */
   private originalFiles: Map<string, Uint8Array>
   private scrivxPath: string
+  /** Other root .scrivx files (a conflicted package); dropped on export. */
+  private staleScrivxPaths: string[]
   private scrivxText: string
   private model: ScrivxModel
   private docs = new Map<string, DocState>()
@@ -99,13 +103,20 @@ export class ProjectSession {
     projectName: string,
     files: Map<string, Uint8Array>,
     scrivxPath: string,
+    staleScrivxPaths: string[] = [],
   ) {
     this.projectName = projectName
     this.files = files
     this.originalFiles = new Map(files)
     this.scrivxPath = scrivxPath
+    this.staleScrivxPaths = staleScrivxPaths
     this.scrivxText = new TextDecoder('utf-8').decode(files.get(scrivxPath)!)
     this.model = parseScrivx(this.scrivxText)
+  }
+
+  /** True when the opened package contained more than one root .scrivx. */
+  hasScrivxConflict(): boolean {
+    return this.staleScrivxPaths.length > 0
   }
 
   /**
@@ -128,18 +139,29 @@ export class ProjectSession {
       if (p) files.set(p, bytes)
     }
 
-    const scrivxPath = [...files.keys()].find(
+    const scrivxPaths = [...files.keys()].filter(
       (p) => p.toLowerCase().endsWith('.scrivx') && !p.includes('/'),
     )
-    if (!scrivxPath) {
+    if (scrivxPaths.length === 0) {
       throw new SessionError(
         'No .scrivx file found at the project root. Is this a Scrivener 3 project?',
       )
     }
     const projectName = rootPrefix
       ? rootPrefix.slice(0, -1).replace(/\.scriv$/i, '')
-      : scrivxPath.replace(/\.scrivx$/i, '')
-    return new ProjectSession(projectName, files, scrivxPath)
+      : scrivxPaths[0].replace(/\.scrivx$/i, '')
+
+    // A package can hold SEVERAL .scrivx files — Scrivener mints one named after
+    // the package whenever the folder was renamed without renaming the binder
+    // (which is what our own "-bartleby" copy used to do), and shows a "Resolve
+    // Conflict" dialog. Never pick arbitrarily: prefer the one Scrivener itself
+    // considers canonical (matching the package name), else the first. The
+    // losers are dropped on export so the conflict doesn't propagate forever.
+    const preferred = `${projectName}.scrivx`
+    const scrivxPath =
+      scrivxPaths.find((p) => p.toLowerCase() === preferred.toLowerCase()) ?? scrivxPaths[0]
+    const stale = scrivxPaths.filter((p) => p !== scrivxPath)
+    return new ProjectSession(projectName, files, scrivxPath, stale)
   }
 
   binderTree(): BinderNode[] {
@@ -342,6 +364,7 @@ export class ProjectSession {
     return {
       projectName: this.projectName,
       scrivxPath: this.scrivxPath,
+      staleScrivxPaths: [...this.staleScrivxPaths],
       files,
       originalFiles: new Map(this.originalFiles),
       dirtyDocs: [...this.dirtyDocs],
@@ -351,7 +374,9 @@ export class ProjectSession {
 
   /** Restore a session from a snapshot produced by serialize(). */
   static deserialize(s: SessionSnapshot): ProjectSession {
-    const session = new ProjectSession(s.projectName, new Map(s.files), s.scrivxPath)
+    const session = new ProjectSession(s.projectName, new Map(s.files), s.scrivxPath, [
+      ...(s.staleScrivxPaths ?? []),
+    ])
     session.originalFiles = new Map(s.originalFiles)
     s.dirtyDocs.forEach((u) => session.dirtyDocs.add(u))
     session.binderDirty = s.binderDirty
@@ -402,7 +427,11 @@ export class ProjectSession {
     writes.set(this.scrivxPath, new TextEncoder().encode(updateProjectMeta(this.scrivxText)))
     // Regenerate docs.checksum over the current (post-edit) document bytes.
     writes.set(DOCS_CHECKSUM_PATH, buildDocsChecksum(this.files))
-    const deletes = STRIP_ON_EXPORT.filter((p) => this.files.has(p))
+    // Clear any rival binder file, else Scrivener keeps asking to resolve it.
+    const deletes = [
+      ...STRIP_ON_EXPORT.filter((p) => this.files.has(p)),
+      ...this.staleScrivxPaths,
+    ]
     return { writes, deletes }
   }
 
@@ -419,13 +448,29 @@ export class ProjectSession {
    * Produce the output project file map: caches stripped, project metadata
    * freshened. Keys are relative to the .scriv root (no root folder prefix).
    */
-  exportFiles(): Map<string, Uint8Array> {
+  /**
+   * The full project as it should be written out.
+   *
+   * `packageName` is the base name of the destination `.scriv` package (no
+   * extension). Scrivener expects `<Package>.scriv` to contain
+   * `<Package>.scrivx`; if the binder file's name doesn't match, Scrivener
+   * silently mints a SECOND .scrivx and every later open shows a "Resolve
+   * Conflict" dialog. So the binder is always emitted as `<packageName>.scrivx`
+   * and any other root .scrivx is dropped — exactly one binder goes out.
+   * Renaming the map key is not a content rewrite, so the minimal-diff rule
+   * still holds: the .scrivx bytes are untouched apart from the usual meta
+   * refresh. Defaults to the opened project's name (an in-place save).
+   */
+  exportFiles(packageName: string = this.projectName): Map<string, Uint8Array> {
     const out = new Map<string, Uint8Array>()
     const scrivx = updateProjectMeta(this.scrivxText)
+    const scrivxOut = `${packageName}.scrivx`
     for (const [path, bytes] of this.files) {
       if (STRIP_ON_EXPORT.includes(path) || path === DOCS_CHECKSUM_PATH) continue
-      out.set(path, path === this.scrivxPath ? new TextEncoder().encode(scrivx) : bytes)
+      if (path === this.scrivxPath || this.staleScrivxPaths.includes(path)) continue
+      out.set(path, bytes)
     }
+    out.set(scrivxOut, new TextEncoder().encode(scrivx))
     // Regenerate docs.checksum last, over the exact bytes going out.
     out.set(DOCS_CHECKSUM_PATH, buildDocsChecksum(out))
     return out

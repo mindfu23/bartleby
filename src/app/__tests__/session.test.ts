@@ -245,3 +245,53 @@ describe('ProjectSession', () => {
     expect(s.readDoc(UUID_SCENE2)).toBe('Una niña soñó. Ünd über alles.\n')
   })
 })
+
+/**
+ * Scrivener expects `<Package>.scriv` to contain `<Package>.scrivx`. If the
+ * folder is renamed but the binder file isn't, Scrivener mints a SECOND .scrivx
+ * and every open shows "Resolve Conflict". Our "-bartleby" copy used to do
+ * exactly this. Regression cover for the real-world bug (2026-07-16).
+ */
+describe('.scrivx name normalization', () => {
+  /** A package whose folder name != its binder file name. */
+  const renamedPackage = (pkg: string) => {
+    const out = new Map<string, Uint8Array>()
+    for (const [p, b] of fixtureFiles('')) out.set(`${pkg}.scriv/${p}`, b)
+    return out
+  }
+  const scrivxIn = (m: Map<string, Uint8Array>) =>
+    [...m.keys()].filter((p) => p.endsWith('.scrivx') && !p.includes('/'))
+
+  it('renames the binder to match the destination package, emitting exactly one', () => {
+    const s = ProjectSession.open(renamedPackage('Baseline-bartleby'))
+    expect(s.projectName).toBe('Baseline-bartleby')
+    const out = s.exportFiles()
+    expect(scrivxIn(out)).toEqual(['Baseline-bartleby.scrivx'])
+  })
+
+  it('names the binder for an explicitly-given destination (the -bartleby copy)', () => {
+    const s = ProjectSession.open(fixtureFiles()) // Baseline.scriv / Baseline.scrivx
+    const out = s.exportFiles('Baseline-bartleby')
+    expect(scrivxIn(out)).toEqual(['Baseline-bartleby.scrivx'])
+    // The binder content still went out — only its filename changed.
+    expect(new TextDecoder().decode(out.get('Baseline-bartleby.scrivx')!)).toContain('<Binder>')
+  })
+
+  it('handles a package that already has rival binder files', () => {
+    const files = renamedPackage('Baseline-bartleby')
+    // Simulate Scrivener's minted duplicate sitting beside the original.
+    files.set('Baseline-bartleby.scriv/Baseline-bartleby.scrivx', files.get('Baseline-bartleby.scriv/Baseline.scrivx')!)
+    const s = ProjectSession.open(files)
+    expect(s.hasScrivxConflict()).toBe(true)
+    // Prefers the one Scrivener considers canonical, and drops the loser.
+    expect(scrivxIn(s.exportFiles())).toEqual(['Baseline-bartleby.scrivx'])
+  })
+
+  it('deletes the rival binder on an in-place save, so the conflict ends', () => {
+    const files = renamedPackage('Baseline-bartleby')
+    files.set('Baseline-bartleby.scriv/Baseline-bartleby.scrivx', files.get('Baseline-bartleby.scriv/Baseline.scrivx')!)
+    const s = ProjectSession.open(files)
+    s.applyEdit(UUID_SCENE1, SCENE1_TEXT.replace('world', 'there'))
+    expect(s.exportDelta().deletes).toContain('Baseline.scrivx')
+  })
+})
