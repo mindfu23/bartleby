@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { ProjectSession } from '../app/session'
 import { whoami, listScrivProjects, downloadProject, type DropboxProject } from '../app/dropboxio'
 import {
@@ -9,6 +9,7 @@ import {
   isOAuthConnected,
   setManualToken,
   disconnect,
+  subscribeAuth,
 } from '../app/dropboxauth'
 
 interface Props {
@@ -24,6 +25,10 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
   const [projects, setProjects] = useState<DropboxProject[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // On native the auth code arrives by deep link with no page reload, so
+  // nothing would re-render this dialog without an explicit subscription.
+  const [, bumpAuth] = useReducer((n: number) => n + 1, 0)
+  useEffect(() => subscribeAuth(bumpAuth), [])
   const connected = isConnected()
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e))
@@ -52,9 +57,10 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
     setBusy(true)
     setError(null)
     try {
-      await beginAuth() // navigates away; we return via the redirect handler
+      await beginAuth() // web navigates away; native opens a browser and deep-links back
     } catch (e) {
       fail(e)
+    } finally {
       setBusy(false)
     }
   }

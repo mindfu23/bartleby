@@ -20,6 +20,7 @@ import {
   DropboxError,
 } from './app/dropboxio'
 import { getAccessToken, DropboxAuthError } from './app/dropboxauth'
+import { isNative } from './app/storage'
 import OpenScreen from './ui/OpenScreen'
 import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
@@ -155,9 +156,25 @@ export default function App() {
     }
     document.addEventListener('visibilitychange', onHide)
     window.addEventListener('beforeunload', onUnload)
+
+    // Native: Android can background/kill the app without a reliable
+    // visibilitychange, so hook Capacitor's own lifecycle event too. Both may
+    // fire — saveRecovery is idempotent, so a double flush is harmless.
+    let removeNative: (() => void) | undefined
+    if (isNative()) {
+      void import('@capacitor/app').then(({ App: CapApp }) =>
+        CapApp.addListener('pause', () => {
+          if (session.isDirty()) void saveRecovery(session.serialize())
+        }).then((h) => {
+          removeNative = () => void h.remove()
+        }),
+      )
+    }
+
     return () => {
       document.removeEventListener('visibilitychange', onHide)
       window.removeEventListener('beforeunload', onUnload)
+      removeNative?.()
     }
   }, [session])
 

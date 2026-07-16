@@ -1,3 +1,5 @@
+import { isNative, kvGet, kvSet, kvRemove } from './storage'
+
 /**
  * Dropbox OAuth 2 with PKCE — the durable replacement for pasted access tokens.
  *
@@ -12,6 +14,14 @@
  * identifier — it is meant to ship in the bundle. The app SECRET must never
  * appear here (or anywhere client-side).
  *
+ * Two platforms, one flow:
+ *  - Web: redirect the page to Dropbox, come back to `<origin>/?code=…`.
+ *  - Native: `capacitor://localhost/` is NOT a redirect URI Dropbox will
+ *    accept, so we use the custom scheme `bartleby://auth` — legal only
+ *    because we're on PKCE — open the system browser, and receive the code
+ *    back through a deep link. The app never navigates away, so there's no
+ *    page reload to carry state across.
+ *
  * Every Dropbox user authorizes THIS one app against their own account; nobody
  * registers an app or generates a token but the developer.
  */
@@ -19,11 +29,15 @@
 const AUTH_URL = 'https://www.dropbox.com/oauth2/authorize'
 const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token'
 
-/** Refresh token + cached access token. Survives reloads. */
+/** Custom scheme redirect for the packaged app. Must be registered in the
+ *  Dropbox App Console AND match the Android intent-filter. */
+export const NATIVE_REDIRECT = 'bartleby://auth'
+
+/** Refresh token + cached access token. */
 const STORE_KEY = 'bartleby-dropbox-auth'
-/** PKCE verifier, held only across the authorize redirect. */
+/** PKCE verifier, held only until the code comes back. */
 const VERIFIER_KEY = 'bartleby-dropbox-verifier'
-/** Set before redirecting so we can reopen the Dropbox picker on return. */
+/** Web only: set before redirecting so we reopen the picker on return. */
 const RESUME_KEY = 'bartleby-dropbox-resume'
 
 /** Refresh this many ms before actual expiry, so a call never races the clock. */
@@ -56,7 +70,7 @@ export function isConfigured(): boolean {
 
 /** Must match a Redirect URI registered in the Dropbox App Console exactly. */
 export function redirectUri(): string {
-  return `${window.location.origin}/`
+  return isNative() ? NATIVE_REDIRECT : `${window.location.origin}/`
 }
 
 // ---------------------------------------------------------------- PKCE bits
@@ -92,34 +106,65 @@ export function buildAuthUrl(key: string, challenge: string, redirect: string): 
   return url.toString()
 }
 
+/**
+ * Pull the OAuth params out of a redirect URL. Written against the raw string
+ * rather than `new URL()`, because custom schemes like `bartleby://auth?code=…`
+ * aren't parsed consistently across engines.
+ */
+export function paramsFromUrl(url: string): URLSearchParams {
+  const q = url.indexOf('?')
+  if (q === -1) return new URLSearchParams()
+  const hash = url.indexOf('#', q)
+  return new URLSearchParams(hash === -1 ? url.slice(q + 1) : url.slice(q + 1, hash))
+}
+
 // ------------------------------------------------------------------ storage
 
-function save(auth: StoredAuth): void {
+/**
+ * In-memory mirror of the stored auth. Native storage is async but React
+ * renders synchronously (isConnected()), so we hydrate once at startup and
+ * read from here after that.
+ */
+let cached: StoredAuth | null = null
+let hydrated = false
+
+const listeners = new Set<() => void>()
+/** Re-render on connect/disconnect — on native there's no page reload to do it. */
+export function subscribeAuth(cb: () => void): () => void {
+  listeners.add(cb)
+  return () => listeners.delete(cb)
+}
+const notify = () => listeners.forEach((l) => l())
+
+/** Load persisted auth into memory. Call once before first render. */
+export async function initAuth(): Promise<void> {
+  if (hydrated) return
+  hydrated = true
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(auth))
+    const raw = await kvGet(STORE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as StoredAuth
+    if (parsed.refreshToken) cached = parsed
   } catch {
-    /* storage blocked — auth then lasts only for this page's lifetime */
+    /* unreadable/corrupt — treat as not connected */
   }
 }
 
+function save(auth: StoredAuth): void {
+  cached = auth
+  void kvSet(STORE_KEY, JSON.stringify(auth))
+  notify()
+}
+
 function load(): StoredAuth | null {
-  try {
-    const raw = localStorage.getItem(STORE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as StoredAuth
-    return parsed.refreshToken ? parsed : null
-  } catch {
-    return null
-  }
+  return cached
 }
 
 export function disconnect(): void {
   manualToken = null
-  try {
-    localStorage.removeItem(STORE_KEY)
-  } catch {
-    /* ignore */
-  }
+  cached = null
+  void kvRemove(STORE_KEY)
+  notify()
 }
 
 /**
@@ -130,6 +175,7 @@ let manualToken: string | null = null
 
 export function setManualToken(token: string | null): void {
   manualToken = token
+  notify()
 }
 
 export function isConnected(): boolean {
@@ -143,13 +189,27 @@ export function isOAuthConnected(): boolean {
 
 // -------------------------------------------------------------------- flows
 
-/** Kick off the authorize redirect. Returns via completeAuthFromRedirect(). */
+/**
+ * Start authorization. On web this navigates the page; on native it opens the
+ * system browser (so the user's existing Dropbox session applies) and the code
+ * arrives via the `bartleby://auth` deep link.
+ */
 export async function beginAuth(): Promise<void> {
   const key = appKey()
   const verifier = randomVerifier()
-  sessionStorage.setItem(VERIFIER_KEY, verifier)
-  sessionStorage.setItem(RESUME_KEY, '1')
+  await kvSet(VERIFIER_KEY, verifier)
   const url = buildAuthUrl(key, await challengeFor(verifier), redirectUri())
+
+  if (isNative()) {
+    const { Browser } = await import('@capacitor/browser')
+    await Browser.open({ url })
+    return
+  }
+  try {
+    sessionStorage.setItem(RESUME_KEY, '1')
+  } catch {
+    /* fine — we just won't auto-reopen the picker */
+  }
   window.location.assign(url)
 }
 
@@ -174,48 +234,66 @@ async function postToken(body: URLSearchParams): Promise<StoredAuth> {
   }
 }
 
+/** Exchange an authorization code for tokens. Shared by both platforms. */
+async function exchangeCode(code: string): Promise<void> {
+  const verifier = await kvGet(VERIFIER_KEY)
+  await kvRemove(VERIFIER_KEY)
+  if (!verifier) throw new DropboxAuthError('Auth session expired — please connect again.')
+  save(
+    await postToken(
+      new URLSearchParams({
+        code,
+        grant_type: 'authorization_code',
+        client_id: appKey(),
+        code_verifier: verifier,
+        redirect_uri: redirectUri(),
+      }),
+    ),
+  )
+}
+
+/** Handle a redirect URL (deep link on native). Returns true if it was ours. */
+export async function completeAuthFromUrl(url: string): Promise<boolean> {
+  const params = paramsFromUrl(url)
+  const err = params.get('error')
+  if (err) throw new DropboxAuthError(`Dropbox authorization was declined (${err}).`)
+  const code = params.get('code')
+  if (!code) return false
+  await exchangeCode(code)
+  return true
+}
+
 /**
- * If we're back from Dropbox with ?code=…, exchange it for tokens and clean the
- * URL. Returns true if an auth was completed. Safe to call on every load.
+ * Web: if we're back from Dropbox with ?code=…, exchange it and clean the URL.
+ * Safe to call on every load; a no-op on native.
  */
 export async function completeAuthFromRedirect(): Promise<boolean> {
-  if (typeof window === 'undefined') return false
+  if (typeof window === 'undefined' || isNative()) return false
   const params = new URLSearchParams(window.location.search)
-  const code = params.get('code')
-  const denied = params.get('error')
-  if (denied) {
+  if (!params.get('code') && !params.get('error')) return false
+  try {
+    return await completeAuthFromUrl(window.location.href)
+  } finally {
     stripAuthParams()
-    throw new DropboxAuthError(`Dropbox authorization was declined (${denied}).`)
   }
-  if (!code) return false
+}
 
-  const verifier = sessionStorage.getItem(VERIFIER_KEY)
-  sessionStorage.removeItem(VERIFIER_KEY)
-  if (!verifier) {
-    stripAuthParams()
-    throw new DropboxAuthError('Auth session expired — please connect again.')
-  }
-
-  const auth = await postToken(
-    new URLSearchParams({
-      code,
-      grant_type: 'authorization_code',
-      client_id: appKey(),
-      code_verifier: verifier,
-      redirect_uri: redirectUri(),
-    }),
-  )
-  save(auth)
-  stripAuthParams()
-  return true
+/** Native: receive the authorization code through the custom-scheme deep link. */
+export async function initNativeAuthListener(): Promise<void> {
+  if (!isNative()) return
+  const { App } = await import('@capacitor/app')
+  const { Browser } = await import('@capacitor/browser')
+  await App.addListener('appUrlOpen', ({ url }) => {
+    if (!url.toLowerCase().startsWith('bartleby://auth')) return
+    void completeAuthFromUrl(url)
+      .catch((e) => console.error('Dropbox auth did not complete:', e))
+      .finally(() => void Browser.close().catch(() => {}))
+  })
 }
 
 function stripAuthParams(): void {
   const url = new URL(window.location.href)
-  url.searchParams.delete('code')
-  url.searchParams.delete('error')
-  url.searchParams.delete('error_description')
-  url.searchParams.delete('state')
+  for (const p of ['code', 'error', 'error_description', 'state']) url.searchParams.delete(p)
   window.history.replaceState({}, '', url.pathname + url.search + url.hash)
 }
 

@@ -75,5 +75,33 @@ Make the app **user-themeable** with a selectable palette set.
 - **Extensible by data**: adding a palette is adding a token block + a name — no component changes. So the "variety of themes" from Figma (and future ones) are all selectable, and the user could even define custom ones later.
 - Works identically in the browser and the Capacitor Android app.
 
-## Recommended next step
-Start with **Phase A (themes)** — it's what you asked for, it's self-contained, and it establishes the token layer everything else styles against. Then Phase B/C are the grounded, high-value structure; Phase D is the delightful real-data analytics; Phase E waits for the rich editor.
+---
+
+# Road to an alpha (agreed 2026-07-16)
+
+**Alpha = the Android app, looking like the Figma.** The web build is the test rig, so "alpha" means Capacitor, not the Netlify page.
+
+## Gate 0 — Capacitor wrap ← IN PROGRESS, do before more Figma polish
+Not a Figma phase; it's the make-or-break, same doctrine as DG0: prove it before building four more screens on top.
+- **Known blocker:** `dropboxauth.redirectUri()` returns `window.location.origin + '/'` → inside Capacitor that's `capacitor://localhost/`, which **Dropbox will not accept**. Must become a custom scheme (`bartleby://auth`), which is legal **only under PKCE** (which we have). Register it in the Dropbox App Console.
+- Deep-link the redirect back in (`@capacitor/app` `appUrlOpen`) instead of a page load.
+- **Encrypted storage** for the refresh token (localStorage is XSS-exposed; fine for web PoC, wrong for a packaged app).
+- Hook the recovery flush to Capacitor `pause` (today it's `visibilitychange`).
+- Capacitor **7** (Node 20 — v8 needs Node 22+). appId `com.anideasmith.bartleby`.
+- **Gate:** installs → OAuth → open from Dropbox → edit → save → opens clean in Mac Scrivener.
+
+## Constraints found while planning (don't rediscover these)
+- **Home-screen word counts / progress rings can't be computed without downloading every project.** Needs a **cached-stats store** (IndexedDB) written on open/save; show last-known values, `—` for never-opened. Otherwise the home screen downloads the user's whole Dropbox on launch.
+- **Fonts must be self-hosted.** The mocks link the Google Fonts CDN (`Big Shoulders Display` / `Manrope` / `Young Serif`); a CDN link breaks offline and is wrong for a packaged app. All three are Google Fonts → licensing fine. **The app currently sets no font-family at all** — this is the single biggest reason it doesn't yet *look* like the Figma, and it's cheap.
+- **Progress rings need a target.** Scrivener's targets storage still needs reverse-engineering → ship a **Bartleby-set target fallback** so the ring isn't blocked on it.
+- **Status/Label would be the first new `.scrivx` write surface since comments** → needs a real-Scrivener gate test, same as Gate 5/6/7.
+
+## Order
+1. **Gate 0 — Capacitor** (above) — de-risks everything else.
+2. **Phase D — writing.history analytics** — best value/effort in the plan: real data, **read-only** (no format-write risk), and it fills the currently-thin Insights tab.
+3. **Typography + branded header** — cheap, highest visual payoff.
+4. **Phase B-rest — Home/library cards** — needs the stats cache; D's parsing overlaps.
+5. **Phase C — Status/Label + targets** — first new write surface; gate-tested.
+6. **Phase E** — post-alpha (rich editor is large; achievements are cheap once D exists).
+
+**Alpha = 1 + 2 + 3 + 4.** C is nice-to-have; E is not alpha.

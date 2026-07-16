@@ -7,3 +7,9 @@ dist/
 .claude/
 CLAUDE.md
 .netlify/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+*.apk

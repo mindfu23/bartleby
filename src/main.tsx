@@ -4,7 +4,7 @@ import './index.css'
 import App from './App'
 import ErrorBoundary from './ui/ErrorBoundary'
 import { initTheme } from './app/theme'
-import { completeAuthFromRedirect } from './app/dropboxauth'
+import { completeAuthFromRedirect, initAuth, initNativeAuthListener } from './app/dropboxauth'
 
 initTheme() // apply the saved theme before first paint
 
@@ -17,9 +17,18 @@ const render = () =>
     </StrictMode>,
   )
 
-// If we're returning from the Dropbox authorize redirect, finish the token
-// exchange BEFORE rendering, so the app comes up already connected. A failure
-// must not block the app — the picker surfaces it on the next attempt.
-completeAuthFromRedirect()
-  .catch((e) => console.error('Dropbox auth did not complete:', e))
-  .finally(render)
+// Hydrate stored auth (async on native) and, if we're returning from the web
+// authorize redirect, finish the token exchange — all BEFORE rendering, so the
+// app comes up already connected. Failures must not block the app; the picker
+// surfaces them on the next attempt.
+void (async () => {
+  try {
+    await initAuth()
+    await initNativeAuthListener()
+    await completeAuthFromRedirect()
+  } catch (e) {
+    console.error('Dropbox auth did not complete:', e)
+  } finally {
+    render()
+  }
+})()
