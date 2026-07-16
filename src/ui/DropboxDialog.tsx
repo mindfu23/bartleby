@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useState } from 'react'
 import { ProjectSession } from '../app/session'
 import { whoami, listScrivProjects, downloadProject, type DropboxProject } from '../app/dropboxio'
+import { loadBrowseCache, saveBrowseCache, timeAgo } from '../app/browsecache'
 import {
   beginAuth,
   getAccessToken,
@@ -25,6 +26,9 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
   const [projects, setProjects] = useState<DropboxProject[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** epoch ms of the cached listing being shown, null once live */
+  const [cachedAt, setCachedAt] = useState<number | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   // On native the auth code arrives by deep link with no page reload, so
   // nothing would re-render this dialog without an explicit subscription.
   const [, bumpAuth] = useReducer((n: number) => n + 1, 0)
@@ -33,20 +37,52 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e))
 
-  /** List .scriv projects using whatever credential we hold. */
-  const browse = async () => {
-    setBusy(true)
-    setError(null)
+  /**
+   * List .scriv projects. `background` refreshes behind an already-shown cached
+   * list: no spinner, and a failure leaves the cached list in place rather than
+   * blanking the screen (being offline shouldn't hide your projects).
+   */
+  const browse = async (folder = root, background = false) => {
+    const dir = folder.trim() || ''
+    if (background) setRefreshing(true)
+    else setBusy(true)
+    if (!background) setError(null)
     try {
       const t = await getAccessToken()
-      setAccount(await whoami(t))
-      setProjects(await listScrivProjects(t, root.trim() || ''))
+      const [who, list] = await Promise.all([
+        account ? Promise.resolve(account) : whoami(t),
+        listScrivProjects(t, dir),
+      ])
+      setAccount(who)
+      setProjects(list)
+      setCachedAt(null)
+      void saveBrowseCache({ root: dir, account: who, projects: list, at: Date.now() })
     } catch (e) {
-      fail(e)
+      if (!background) fail(e)
     } finally {
       setBusy(false)
+      setRefreshing(false)
     }
   }
+
+  // Show the last-known project list immediately, then refresh behind it.
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      const cache = await loadBrowseCache()
+      if (!alive || !cache) return
+      setRoot(cache.root)
+      setAccount(cache.account)
+      if (!isConnected() || cache.projects.length === 0) return
+      setProjects(cache.projects)
+      setCachedAt(cache.at)
+      void browse(cache.root, true)
+    })()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const useManualToken = async () => {
     setManualToken(token.trim())
@@ -91,8 +127,12 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
         {projects ? (
           <>
             <p className="mt-1 text-xs text-ink-soft">
-              Connected as {account} · {projects.length} project
-              {projects.length === 1 ? '' : 's'} in {root}
+              {account ? `Connected as ${account} · ` : ''}
+              {projects.length} project{projects.length === 1 ? '' : 's'} in {root}
+              {refreshing && <span className="text-ink-faint"> · refreshing…</span>}
+              {!refreshing && cachedAt !== null && (
+                <span className="text-ink-faint"> · from {timeAgo(cachedAt)}</span>
+              )}
             </p>
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
               {projects.length === 0 && (
@@ -136,7 +176,7 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
             <div className="mt-4 flex items-center gap-2">
               <button
                 disabled={busy}
-                onClick={browse}
+                onClick={() => browse()}
                 className="rounded bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-40"
               >
                 {busy ? 'Loading…' : 'Browse projects'}

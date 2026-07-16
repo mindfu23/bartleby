@@ -81,14 +81,26 @@ Make the app **user-themeable** with a selectable palette set.
 
 **Alpha = the Android app, looking like the Figma.** The web build is the test rig, so "alpha" means Capacitor, not the Netlify page.
 
-## Gate 0 — Capacitor wrap ← IN PROGRESS, do before more Figma polish
-Not a Figma phase; it's the make-or-break, same doctrine as DG0: prove it before building four more screens on top.
-- **Known blocker:** `dropboxauth.redirectUri()` returns `window.location.origin + '/'` → inside Capacitor that's `capacitor://localhost/`, which **Dropbox will not accept**. Must become a custom scheme (`bartleby://auth`), which is legal **only under PKCE** (which we have). Register it in the Dropbox App Console.
-- Deep-link the redirect back in (`@capacitor/app` `appUrlOpen`) instead of a page load.
-- **Encrypted storage** for the refresh token (localStorage is XSS-exposed; fine for web PoC, wrong for a packaged app).
-- Hook the recovery flush to Capacitor `pause` (today it's `visibilitychange`).
-- Capacitor **7** (Node 20 — v8 needs Node 22+). appId `com.anideasmith.bartleby`.
-- **Gate:** installs → OAuth → open from Dropbox → edit → save → opens clean in Mac Scrivener.
+## Gate 0 — Capacitor wrap — ✅ **OAuth PASSED on the Android emulator (2026-07-16)**
+Not a Figma phase; it was the make-or-break, same doctrine as DG0. **Signed into Dropbox from the emulator and reached files.** Remaining gate steps (edit → save → opens clean in Mac Scrivener) still to run on a device.
+
+**Shipped:**
+- **The blocker was real and is fixed:** `redirectUri()` would have returned `capacitor://localhost/`, which Dropbox rejects. Native now uses **`bartleby://auth`** (legal only under PKCE). It must stay in sync in **three places**: `NATIVE_REDIRECT` in `src/app/dropboxauth.ts`, the `<intent-filter>` in `android/app/src/main/AndroidManifest.xml`, and the **Dropbox App Console** Redirect URIs.
+- **Native flow has no page reload.** `beginAuth()` opens the *system browser* (`@capacitor/browser`, so the user's existing Dropbox session applies); the code returns via deep link (`@capacitor/app` `appUrlOpen`) into the running app. That's why `DropboxDialog` subscribes to `subscribeAuth()` — nothing else would re-render it. `MainActivity` is `launchMode="singleTask"`, so the code arrives via `onNewIntent`.
+- **Storage seam** (`src/app/storage.ts`): web → localStorage, native → Capacitor Preferences (app-private, unreachable by web XSS). Async, so `initAuth()` hydrates an in-memory cache before first render (`isConnected()` is called during render and must stay sync). ⚠️ App-private ≠ encrypted-at-rest; **Keystore-backed storage is still a follow-up**.
+- Recovery flush also hooks Capacitor **`pause`** (Android can background without a reliable `visibilitychange`).
+- APK builds: **4–5 MB**, `com.anideasmith.bartleby`. `npm run android:apk` / `android:run` / `android:open`.
+
+**Environment gotchas (both baked into the npm scripts + CLAUDE.md):**
+- **Capacitor 7 needs JDK 21**; this machine defaults to 17 → `invalid source release: 21`. The scripts pin **Android Studio's bundled JBR 21** (`/Applications/Android Studio.app/Contents/jbr/Contents/Home`) — nothing to install.
+- `ANDROID_HOME` is not exported in the shell; the scripts set `~/Library/Android/sdk`.
+
+## Settled: NO local-Dropbox access on Android (researched 2026-07-16, don't revisit)
+Asked whether the app should use a locally-installed Dropbox before going over the network. **It cannot, and it wouldn't help.**
+- **Dropbox's Android app implements no `DocumentsProvider` and does not integrate with SAF** (Dropbox staff statement) — it doesn't even appear in Android's file picker.
+- No local mirror: it **streams on demand**. Offline copies live in its **private cache, hidden from the OS**. Offline *folders* are a **paid** feature. Android 11+ blocks `Android/data/...` via SAF anyway.
+- No folder-tree access, and a `.scriv` is a folder of dozens of files. **The HTTP API is the only door.**
+- The real version of that instinct = **our own** offline cache (see Android backlog #4).
 
 ## Constraints found while planning (don't rediscover these)
 - **Home-screen word counts / progress rings can't be computed without downloading every project.** Needs a **cached-stats store** (IndexedDB) written on open/save; show last-known values, `—` for never-opened. Otherwise the home screen downloads the user's whole Dropbox on launch.
@@ -96,12 +108,33 @@ Not a Figma phase; it's the make-or-break, same doctrine as DG0: prove it before
 - **Progress rings need a target.** Scrivener's targets storage still needs reverse-engineering → ship a **Bartleby-set target fallback** so the ring isn't blocked on it.
 - **Status/Label would be the first new `.scrivx` write surface since comments** → needs a real-Scrivener gate test, same as Gate 5/6/7.
 
-## Order
-1. **Gate 0 — Capacitor** (above) — de-risks everything else.
-2. **Phase D — writing.history analytics** — best value/effort in the plan: real data, **read-only** (no format-write risk), and it fills the currently-thin Insights tab.
-3. **Typography + branded header** — cheap, highest visual payoff.
-4. **Phase B-rest — Home/library cards** — needs the stats cache; D's parsing overlaps.
-5. **Phase C — Status/Label + targets** — first new write surface; gate-tested.
-6. **Phase E** — post-alpha (rich editor is large; achievements are cheap once D exists).
+## Android polish backlog (from device testing, 2026-07-16)
 
-**Alpha = 1 + 2 + 3 + 4.** C is nice-to-have; E is not alpha.
+**Shipped already:**
+- **Cached project listing** (`src/app/browsecache.ts`) — reopening the picker shows the last-known list **instantly**, then refreshes behind it (stale-while-revalidate); remembers the folder, so no retyping `/ebooks`. Header shows `· from 5 min ago` / `· refreshing…`. **A failed background refresh deliberately keeps the cached list on screen** — being offline must not hide your projects.
+- **"Check again"** on the Scrivener-lock banner — close it in Scrivener, tap, banner clears.
+
+**To do, most valuable first:**
+1. **Android back button — closest thing to a bug; do first.** Back almost certainly **quits the app** from any screen, mid-edit. Should: close a dialog → go Write→Outline → only exit at top level (confirm if dirty). Use `@capacitor/app` `backButton`.
+2. **App icon + splash** — still the default Capacitor icon. Alpha necessity; per user convention the logo doubles as the home-screen icon.
+3. **Status bar theming** — status bar is fixed while themes change the background (Parchment will look wrong). `@capacitor/status-bar`, driven from `applyTheme()`.
+4. **Real offline support** — cache the *opened project* locally (reuse the IndexedDB recovery machinery) so it opens/edits with no connection; **queue the save** for reconnect. This is the honest version of the local-Dropbox idea above.
+5. **Keyboard insets** — Android's keyboard will cover the editor's lower half. `@capacitor/keyboard` + padding.
+6. **"Continue writing ___"** — remembering the last project is half of Phase B-rest's home screen anyway.
+
+## Order
+1. ~~**Gate 0 — Capacitor**~~ ✅ OAuth passed; finish the device gate (edit → save → Mac Scrivener clean).
+2. **Android polish 1–3** (back button, icon/splash, status bar) — small, and #1 is near-bug.
+3. **Phase D — writing.history analytics** — best value/effort in the plan: real data, **read-only** (no format-write risk), fills the currently-thin Insights tab.
+4. **Typography + branded header** — cheap, highest visual payoff.
+5. **Phase B-rest — Home/library cards** — needs the stats cache; D's parsing overlaps.
+6. **Phase C — Status/Label + targets** — first new write surface; gate-tested.
+7. **Android offline (backlog #4)**, then **Phase E** — post-alpha (rich editor is large; achievements cheap once D exists).
+
+**Alpha = 1 + 2 + 3 + 4 + 5.** C is nice-to-have; E is not alpha.
+
+## Pick up here (next session)
+- **User action outstanding:** register **`bartleby://auth`** in the Dropbox App Console → Redirect URIs (alongside the two `https://` ones) if not already done — the emulator sign-in worked, so it likely is.
+- **Then:** finish the device gate (edit → save → open in Mac Scrivener, expect no repair/conflict dialog), and start Android polish #1 (back button).
+- **Deploy is `npx netlify deploy --prod --dir=dist --no-build`** — `--no-build` is mandatory (see CLAUDE.md); verify by fetching the live bundle, never by the CLI's success line.
+- 125 tests passing; web live and byte-identical to the tested build.

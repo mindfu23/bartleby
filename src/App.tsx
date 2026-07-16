@@ -85,6 +85,7 @@ export default function App() {
     docs: string[]
     extra: number
   }>({ changed: false, locked: false, docs: [], extra: 0 })
+  const [rechecking, setRechecking] = useState(false)
   // bump to re-render after session mutations (session is a mutable class instance)
   const [version, setVersion] = useState(0)
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
@@ -107,37 +108,37 @@ export default function App() {
   // Watch Dropbox for changes made elsewhere (e.g. Scrivener on the desktop)
   // while this project is open. Only while visible, so a backgrounded phone
   // isn't burning battery/data; the save-time check stays authoritative.
+  const checkRemote = useCallback(async () => {
+    if (!session || !dropbox) return
+    try {
+      const current = await projectHashes(await getAccessToken(), dropbox.scrivPath)
+      const changed = !hashesEqual(current, dropbox.base)
+      const uuids = changed ? changedDocUuids(dropbox.base, current) : new Set<string>()
+      const docs = titlesFor(session, uuids)
+      setRemote({
+        changed,
+        locked: isLockedByScrivener(current),
+        docs,
+        extra: Math.max(0, uuids.size - docs.length),
+      })
+    } catch {
+      // offline / transient — say nothing; the save path re-checks anyway
+    }
+  }, [session, dropbox])
+
   useEffect(() => {
     if (!session || !dropbox) return
-    let cancelled = false
-    const check = async () => {
-      if (document.visibilityState !== 'visible') return
-      try {
-        const current = await projectHashes(await getAccessToken(), dropbox.scrivPath)
-        if (cancelled) return
-        const changed = !hashesEqual(current, dropbox.base)
-        const uuids = changed ? changedDocUuids(dropbox.base, current) : new Set<string>()
-        const docs = titlesFor(session, uuids)
-        setRemote({
-          changed,
-          locked: isLockedByScrivener(current),
-          docs,
-          extra: Math.max(0, uuids.size - docs.length),
-        })
-      } catch {
-        // offline / transient — say nothing; the save path re-checks anyway
-      }
+    const check = () => {
+      if (document.visibilityState === 'visible') void checkRemote()
     }
-    void check()
-    const onVis = () => void check()
-    const id = setInterval(() => void check(), 60_000)
-    document.addEventListener('visibilitychange', onVis)
+    check()
+    const id = setInterval(check, 60_000)
+    document.addEventListener('visibilitychange', check)
     return () => {
-      cancelled = true
       clearInterval(id)
-      document.removeEventListener('visibilitychange', onVis)
+      document.removeEventListener('visibilitychange', check)
     }
-  }, [session, dropbox, version])
+  }, [session, dropbox, checkRemote])
 
   // Flush to recovery when the tab is hidden/backgrounded (the reliable
   // "save on close" hook — async writes can't be trusted during teardown).
@@ -706,6 +707,22 @@ export default function App() {
               className="rounded border border-amber-600 px-2 py-0.5 font-medium hover:bg-amber-900/50"
             >
               Reload latest{session.isDirty() ? ' (discards my edits)' : ''}
+            </button>
+          )}
+          {remote.locked && !remote.changed && (
+            <button
+              disabled={rechecking}
+              onClick={async () => {
+                setRechecking(true)
+                try {
+                  await checkRemote()
+                } finally {
+                  setRechecking(false)
+                }
+              }}
+              className="rounded border border-amber-600 px-2 py-0.5 font-medium hover:bg-amber-900/50 disabled:opacity-50"
+            >
+              {rechecking ? 'Checking…' : 'Check again'}
             </button>
           )}
           <button
