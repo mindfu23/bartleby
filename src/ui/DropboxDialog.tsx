@@ -1,35 +1,60 @@
 import { useState } from 'react'
 import { ProjectSession } from '../app/session'
 import { whoami, listScrivProjects, downloadProject, type DropboxProject } from '../app/dropboxio'
+import {
+  beginAuth,
+  getAccessToken,
+  isConfigured,
+  isConnected,
+  isOAuthConnected,
+  setManualToken,
+  disconnect,
+} from '../app/dropboxauth'
 
 interface Props {
-  onOpen: (
-    session: ProjectSession,
-    token: string,
-    scrivPath: string,
-    baseHashes: Map<string, string>,
-  ) => void
+  onOpen: (session: ProjectSession, scrivPath: string, baseHashes: Map<string, string>) => void
   onClose: () => void
 }
 
 export default function DropboxDialog({ onOpen, onClose }: Props) {
   const [token, setToken] = useState('')
+  const [showManual, setShowManual] = useState(false)
   const [root, setRoot] = useState('/ebooks')
   const [account, setAccount] = useState<string | null>(null)
   const [projects, setProjects] = useState<DropboxProject[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const connected = isConnected()
+
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e))
+
+  /** List .scriv projects using whatever credential we hold. */
+  const browse = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const t = await getAccessToken()
+      setAccount(await whoami(t))
+      setProjects(await listScrivProjects(t, root.trim() || ''))
+    } catch (e) {
+      fail(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const useManualToken = async () => {
+    setManualToken(token.trim())
+    await browse()
+  }
 
   const connect = async () => {
     setBusy(true)
     setError(null)
     try {
-      const t = token.trim()
-      setAccount(await whoami(t))
-      setProjects(await listScrivProjects(t, root.trim() || ''))
+      await beginAuth() // navigates away; we return via the redirect handler
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
+      fail(e)
       setBusy(false)
     }
   }
@@ -38,10 +63,10 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const { files, hashes } = await downloadProject(token.trim(), p.path)
-      onOpen(ProjectSession.open(files), token.trim(), p.path, hashes)
+      const { files, hashes } = await downloadProject(await getAccessToken(), p.path)
+      onOpen(ProjectSession.open(files), p.path, hashes)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      fail(e)
       setBusy(false)
     }
   }
@@ -57,42 +82,11 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
       >
         <h3 className="text-lg font-medium text-accent">Open from Dropbox</h3>
 
-        {!projects ? (
+        {projects ? (
           <>
             <p className="mt-1 text-xs text-ink-soft">
-              Paste a Dropbox access token — it stays in this browser session only, never stored.
-            </p>
-            <label className="mt-3 block text-sm text-ink-soft">
-              Access token
-              <input
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="sl.xxxxx"
-                autoComplete="off"
-                className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
-              />
-            </label>
-            <label className="mt-3 block text-sm text-ink-soft">
-              Folder to search
-              <input
-                value={root}
-                onChange={(e) => setRoot(e.target.value)}
-                placeholder="/ebooks"
-                className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
-              />
-            </label>
-            <button
-              disabled={busy || !token.trim()}
-              onClick={connect}
-              className="mt-4 rounded bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-40"
-            >
-              {busy ? 'Connecting…' : 'Connect'}
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="mt-1 text-xs text-ink-soft">
-              Connected as {account} · {projects.length} project{projects.length === 1 ? '' : 's'} in {root}
+              Connected as {account} · {projects.length} project
+              {projects.length === 1 ? '' : 's'} in {root}
             </p>
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
               {projects.length === 0 && (
@@ -114,8 +108,105 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
               onClick={() => setProjects(null)}
               className="mt-2 self-start text-xs text-ink-soft hover:text-accent"
             >
-              ← use a different token / folder
+              ← choose a different folder
             </button>
+          </>
+        ) : connected ? (
+          <>
+            <p className="mt-1 text-xs text-ink-soft">
+              {isOAuthConnected()
+                ? 'Dropbox is connected — access renews itself, no tokens to manage.'
+                : 'Using a pasted token (expires in about 4 hours).'}
+            </p>
+            <label className="mt-3 block text-sm text-ink-soft">
+              Folder to search
+              <input
+                value={root}
+                onChange={(e) => setRoot(e.target.value)}
+                placeholder="/ebooks"
+                className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
+              />
+            </label>
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                disabled={busy}
+                onClick={browse}
+                className="rounded bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-40"
+              >
+                {busy ? 'Loading…' : 'Browse projects'}
+              </button>
+              <button
+                onClick={() => {
+                  disconnect()
+                  setProjects(null)
+                  setAccount(null)
+                  setError(null)
+                }}
+                className="rounded px-3 py-2 text-xs text-ink-soft hover:bg-surface"
+              >
+                Disconnect
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-ink-soft">
+              Sign in to your own Dropbox and approve Bartleby once. Your access
+              stays connected — nothing to copy or paste, and no token expiry.
+            </p>
+            {isConfigured() && (
+              <button
+                disabled={busy}
+                onClick={connect}
+                className="mt-4 rounded-lg bg-sky-700 px-5 py-3 text-sm font-medium text-sky-50 hover:bg-sky-600 disabled:opacity-40"
+              >
+                {busy ? 'Redirecting…' : 'Connect Dropbox'}
+              </button>
+            )}
+
+            {!isConfigured() && (
+              <p className="mt-3 rounded border border-edge bg-surface px-3 py-2 text-xs text-ink-faint">
+                No Dropbox app key is configured for this build, so paste a token
+                below instead.
+              </p>
+            )}
+
+            <button
+              onClick={() => setShowManual(!showManual)}
+              className="mt-3 self-start text-xs text-ink-faint hover:text-accent"
+            >
+              {showManual ? '− hide' : '+ advanced:'} paste a token instead
+            </button>
+            {showManual && (
+              <>
+                <label className="mt-2 block text-sm text-ink-soft">
+                  Access token
+                  <input
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="sl.xxxxx"
+                    autoComplete="off"
+                    className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
+                  />
+                </label>
+                <label className="mt-2 block text-sm text-ink-soft">
+                  Folder to search
+                  <input
+                    value={root}
+                    onChange={(e) => setRoot(e.target.value)}
+                    placeholder="/ebooks"
+                    className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
+                  />
+                </label>
+                <button
+                  disabled={busy || !token.trim()}
+                  onClick={useManualToken}
+                  className="mt-3 self-start rounded border border-edge px-4 py-2 text-sm text-ink hover:bg-surface disabled:opacity-40"
+                >
+                  {busy ? 'Connecting…' : 'Use this token'}
+                </button>
+              </>
+            )}
           </>
         )}
 
@@ -124,7 +215,6 @@ export default function DropboxDialog({ onOpen, onClose }: Props) {
             {error}
           </p>
         )}
-        {busy && <p className="mt-2 text-center text-sm text-ink-soft">Working…</p>}
         <button
           onClick={onClose}
           className="mt-4 self-end rounded px-3 py-1.5 text-sm text-ink-soft hover:bg-surface"

@@ -4,6 +4,10 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # The Dropbox app key is a PUBLIC OAuth/PKCE client identifier, not a secret,
+  # so it is meant to ship in the bundle. Tell the secrets scanner that's
+  # intentional. (The Dropbox app SECRET is never used client-side.)
+  SECRETS_SCAN_OMIT_KEYS = "VITE_DROPBOX_APP_KEY"
 
 [[redirects]]
   from = "/*"

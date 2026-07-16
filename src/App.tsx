@@ -14,6 +14,7 @@ import {
   backupCopyPath,
   DropboxError,
 } from './app/dropboxio'
+import { getAccessToken, DropboxAuthError } from './app/dropboxauth'
 import OpenScreen from './ui/OpenScreen'
 import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
@@ -46,9 +47,9 @@ export default function App() {
   const [exporting, setExporting] = useState(false)
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null)
   // Set when the project was opened from Dropbox; enables Dropbox saves. `base`
-  // is the server file-hash map at open time, for conflict detection.
+  // is the server file-hash map at open time, for conflict detection. The
+  // credential lives in dropboxauth (it refreshes itself), not here.
   const [dropbox, setDropbox] = useState<{
-    token: string
     scrivPath: string
     base: Map<string, string>
   } | null>(null)
@@ -122,10 +123,10 @@ export default function App() {
           setSelected(null)
           setRecovery(null)
         }}
-        onOpenDropbox={(s, token, scrivPath, baseHashes) => {
+        onOpenDropbox={(s, scrivPath, baseHashes) => {
           setSession(s)
           setDirHandle(null)
-          setDropbox({ token, scrivPath, base: baseHashes })
+          setDropbox({ scrivPath, base: baseHashes })
           setBackupDone(false)
           setSaveStatus(null)
           setSelected(null)
@@ -371,10 +372,13 @@ export default function App() {
     setTimeout(() => setSaveStatus(null), 7000)
   }
 
-  const dropboxErr = (e: unknown): string =>
-    e instanceof DropboxError && /→ 401/.test(e.message)
-      ? 'Dropbox token expired — Close and reconnect with a fresh token.'
-      : `Dropbox save failed: ${e instanceof Error ? e.message : String(e)}`
+  const dropboxErr = (e: unknown): string => {
+    if (e instanceof DropboxAuthError) return `Dropbox: ${e.message}`
+    if (e instanceof DropboxError && /→ 401/.test(e.message)) {
+      return 'Dropbox rejected the credential — Close and connect again.'
+    }
+    return `Dropbox save failed: ${e instanceof Error ? e.message : String(e)}`
+  }
 
   const saveDropboxCopy = async () => {
     if (!dropbox) return
@@ -382,7 +386,7 @@ export default function App() {
     const dest = bartlebyCopyPath(dropbox.scrivPath)
     setSaveStatus('Saving a copy to Dropbox…')
     try {
-      await uploadProject(dropbox.token, dest, session.exportFiles())
+      await uploadProject(await getAccessToken(), dest, session.exportFiles())
       afterDropboxSave(`Saved copy → ${basename(dest)} ✓`)
     } catch (e) {
       setSaveStatus(dropboxErr(e))
@@ -394,23 +398,24 @@ export default function App() {
     setShowDbxSave(false)
     setSaveStatus('Checking Dropbox for other changes…')
     try {
+      const token = await getAccessToken()
       // Conflict: did the project change on another device since we opened it?
-      const current = await projectHashes(dropbox.token, dropbox.scrivPath)
+      const current = await projectHashes(token, dropbox.scrivPath)
       if (!hashesEqual(current, dropbox.base)) {
         const dest = conflictCopyPath(dropbox.scrivPath)
         setSaveStatus('Changed elsewhere — writing a conflict copy…')
-        await uploadProject(dropbox.token, dest, session.exportFiles())
+        await uploadProject(token, dest, session.exportFiles())
         setSaveStatus(`⚠ Project changed on another device — saved to ${basename(dest)}; original untouched.`)
         return
       }
       if (!backupDone) {
         setSaveStatus('Backing up the original first…')
-        await copyFolder(dropbox.token, dropbox.scrivPath, backupCopyPath(dropbox.scrivPath))
+        await copyFolder(token, dropbox.scrivPath, backupCopyPath(dropbox.scrivPath))
         setBackupDone(true)
       }
       setSaveStatus('Saving in place…')
-      await saveProjectInPlace(dropbox.token, dropbox.scrivPath, session.exportFiles())
-      setDropbox({ ...dropbox, base: await projectHashes(dropbox.token, dropbox.scrivPath) })
+      await saveProjectInPlace(token, dropbox.scrivPath, session.exportFiles())
+      setDropbox({ ...dropbox, base: await projectHashes(token, dropbox.scrivPath) })
       afterDropboxSave('Saved in place to Dropbox ✓')
     } catch (e) {
       setSaveStatus(dropboxErr(e))

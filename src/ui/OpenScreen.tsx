@@ -5,12 +5,12 @@ import { supportsDirectAccess, pickProjectDirectory, readProject } from '../app/
 import type { RecoveryRecord } from '../app/recovery'
 import DropboxDialog from './DropboxDialog'
 import SettingsDialog from './SettingsDialog'
+import { consumeResumeFlag } from '../app/dropboxauth'
 
 interface Props {
   onOpen: (session: ProjectSession, dirHandle: FileSystemDirectoryHandle | null) => void
   onOpenDropbox: (
     session: ProjectSession,
-    token: string,
     scrivPath: string,
     baseHashes: Map<string, string>,
   ) => void
@@ -25,7 +25,9 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [choices, setChoices] = useState<FileSystemDirectoryHandle[] | null>(null)
-  const [showDropbox, setShowDropbox] = useState(false)
+  // Reopen the Dropbox picker automatically when we land back from the OAuth
+  // redirect, so connecting feels like one continuous action.
+  const [showDropbox, setShowDropbox] = useState(() => consumeResumeFlag())
   const [showSettings, setShowSettings] = useState(false)
   const direct = supportsDirectAccess()
 
@@ -150,9 +152,9 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
 
       {showDropbox && (
         <DropboxDialog
-          onOpen={(s, token, scrivPath, baseHashes) => {
+          onOpen={(s, scrivPath, baseHashes) => {
             setShowDropbox(false)
-            onOpenDropbox(s, token, scrivPath, baseHashes)
+            onOpenDropbox(s, scrivPath, baseHashes)
           }}
           onClose={() => setShowDropbox(false)}
         />
