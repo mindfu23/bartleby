@@ -25,18 +25,18 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex h-full flex-col items-center justify-center gap-4 bg-stone-900 px-6 text-center text-stone-300">
-          <h1 className="font-serif text-2xl text-amber-100">Something went wrong</h1>
-          <p className="max-w-md text-sm text-stone-400">
+        <div className="flex h-full flex-col items-center justify-center gap-4 bg-canvas px-6 text-center text-ink-soft">
+          <h1 className="font-serif text-2xl text-accent">Something went wrong</h1>
+          <p className="max-w-md text-sm text-ink-soft">
             The app hit an unexpected error. Your work is auto-saved in this browser — reload to
             recover it.
           </p>
-          <pre className="max-w-md overflow-x-auto rounded bg-stone-950 p-3 text-left text-xs text-red-300">
+          <pre className="max-w-md overflow-x-auto rounded bg-panel p-3 text-left text-xs text-red-300">
             {this.state.error.message}
           </pre>
           <button
             onClick={() => window.location.reload()}
-            className="rounded bg-amber-700 px-5 py-2 text-sm font-medium text-amber-50 hover:bg-amber-600"
+            className="rounded bg-accent px-5 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             Reload
           </button>

@@ -1,6 +1,98 @@
 @import "tailwindcss";
 
+/*
+ * Theme system (Phase A). Each theme is a block of --th-* custom properties;
+ * @theme maps them to semantic Tailwind color utilities (bg-canvas, text-ink,
+ * bg-accent, …) so components style against tokens, not hardcoded stone/amber.
+ * Switching themes = setting data-theme on <html> (see src/app/theme.ts).
+ * Adding a theme is pure data: a new [data-theme="…"] block + a THEMES entry.
+ */
+@theme {
+  --color-canvas: var(--th-bg);
+  --color-panel: var(--th-panel);
+  --color-surface: var(--th-surface);
+  --color-edge: var(--th-border);
+  --color-ink: var(--th-text);
+  --color-ink-soft: var(--th-text-secondary);
+  --color-ink-faint: var(--th-text-faint);
+  --color-accent: var(--th-accent);
+  --color-accent-hover: var(--th-accent-hover);
+  --color-accent-soft: var(--th-accent-soft);
+  --color-on-accent: var(--th-on-accent);
+}
+
+:root,
+[data-theme="dark"] {
+  --th-bg: #0d0c0b;
+  --th-panel: #131211;
+  --th-surface: #1c1a18;
+  --th-border: #2a2826;
+  --th-text: #faf5ec;
+  --th-text-secondary: #a8a29a;
+  --th-text-faint: #6e6a63;
+  --th-accent: #e8a838;
+  --th-accent-hover: #f2ba50;
+  --th-accent-soft: #2a2318;
+  --th-on-accent: #17140f;
+}
+
+[data-theme="light"] {
+  --th-bg: #faf6f0;
+  --th-panel: #f3ebde;
+  --th-surface: #fffdf9;
+  --th-border: #e6ded1;
+  --th-text: #1e221e;
+  --th-text-secondary: #6b6e6a;
+  --th-text-faint: #9a9d97;
+  --th-accent: #9c6f2e;
+  --th-accent-hover: #86601f;
+  --th-accent-soft: #f2ead8;
+  --th-on-accent: #fffdf9;
+}
+
+[data-theme="lavender"] {
+  --th-bg: #241019;
+  --th-panel: #2f1522;
+  --th-surface: #38192a;
+  --th-border: #4e2338;
+  --th-text: #faf0f2;
+  --th-text-secondary: #d4a8b6;
+  --th-text-faint: #9a6f7e;
+  --th-accent: #b8405f;
+  --th-accent-hover: #cc5474;
+  --th-accent-soft: #3d1626;
+  --th-on-accent: #faf0f2;
+}
+
+[data-theme="mint"] {
+  --th-bg: #0a0a0a;
+  --th-panel: #121312;
+  --th-surface: #1a1c1a;
+  --th-border: #2a2e2a;
+  --th-text: #f0f5f0;
+  --th-text-secondary: #a8c4b0;
+  --th-text-faint: #6f8676;
+  --th-accent: #86efac;
+  --th-accent-hover: #a6f5c2;
+  --th-accent-soft: #14261b;
+  --th-on-accent: #08160d;
+}
+
+[data-theme="coral"] {
+  --th-bg: #2a1520;
+  --th-panel: #351a2a;
+  --th-surface: #3d1f30;
+  --th-border: #4a2438;
+  --th-text: #faf5e9;
+  --th-text-secondary: #d4a0b8;
+  --th-text-faint: #9a6f82;
+  --th-accent: #f7a8c4;
+  --th-accent-hover: #fbc0d6;
+  --th-accent-soft: #45182f;
+  --th-on-accent: #2a1520;
+}
+
 html, body, #root {
   height: 100%;
-  background-color: #1c1917; /* stone-900 — no white behind the app on overscroll */
+  background-color: var(--th-bg); /* no white behind the app on overscroll */
 }

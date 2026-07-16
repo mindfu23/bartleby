@@ -45,27 +45,27 @@ export default function AddDocumentDialog({ roots, defaultParent, onAdd, onClose
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-stone-700 bg-stone-900 p-5 shadow-2xl"
+        className="w-full max-w-md rounded-xl border border-edge bg-canvas p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-stone-100">Add document</h3>
-        <label className="mt-4 block text-sm text-stone-400">
+        <h3 className="text-lg font-medium text-ink">Add document</h3>
+        <label className="mt-4 block text-sm text-ink-soft">
           Title
           <input
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
-            className="mt-1 w-full rounded border border-stone-700 bg-stone-800 px-3 py-2 text-stone-100 outline-none focus:border-amber-600"
+            className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
             placeholder="New scene"
           />
         </label>
-        <label className="mt-3 block text-sm text-stone-400">
+        <label className="mt-3 block text-sm text-ink-soft">
           Location
           <select
             value={parent}
             onChange={(e) => setParent(e.target.value)}
-            className="mt-1 w-full rounded border border-stone-700 bg-stone-800 px-3 py-2 text-stone-100 outline-none focus:border-amber-600"
+            className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
           >
             <option value="">Binder root</option>
             {folders.map((f) => (
@@ -79,13 +79,13 @@ export default function AddDocumentDialog({ roots, defaultParent, onAdd, onClose
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded px-4 py-2 text-sm text-stone-300 hover:bg-stone-800"
+            className="rounded px-4 py-2 text-sm text-ink-soft hover:bg-surface"
           >
             Cancel
           </button>
           <button
             onClick={submit}
-            className="rounded bg-amber-700 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-600"
+            className="rounded bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             Add document
           </button>

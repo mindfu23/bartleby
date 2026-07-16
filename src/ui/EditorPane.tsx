@@ -134,7 +134,7 @@ export default function EditorPane({
 
   if (!node) {
     return (
-      <div className="flex h-full items-center justify-center text-stone-500">
+      <div className="flex h-full items-center justify-center text-ink-faint">
         Select a document in the binder to read or edit it.
       </div>
     )
@@ -142,7 +142,7 @@ export default function EditorPane({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-stone-800 px-4 py-2">
+      <div className="flex items-center gap-3 border-b border-edge px-4 py-2">
         <span className="shrink-0 text-lg">{isFolder ? '📁' : '📄'}</span>
         <input
           value={titleDraft}
@@ -159,24 +159,24 @@ export default function EditorPane({
           }}
           aria-label="Document title"
           placeholder="(untitled)"
-          className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 font-medium text-stone-200 outline-none hover:bg-stone-800/50 focus:bg-stone-800 focus:ring-1 focus:ring-amber-700 ${
-            titleChanged ? 'ring-1 ring-amber-600' : ''
+          className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 font-medium text-ink outline-none hover:bg-surface/50 focus:bg-surface focus:ring-1 focus:ring-accent ${
+            titleChanged ? 'ring-1 ring-accent' : ''
           }`}
         />
-        <span className="hidden shrink-0 truncate text-xs text-stone-600 sm:inline">{node.uuid}</span>
+        <span className="hidden shrink-0 truncate text-xs text-ink-faint sm:inline">{node.uuid}</span>
         <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
           {!isFixedRoot(node.type) && (
             <>
               <button
                 onClick={onMoveRequest}
-                className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+                className="rounded border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface"
               >
                 Move
               </button>
               <button
                 onClick={onTrash}
                 title="Move to Trash (recoverable)"
-                className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-300 hover:bg-red-950 hover:text-red-200"
+                className="rounded border border-edge px-3 py-1.5 text-sm text-ink-soft hover:bg-red-950 hover:text-red-200"
               >
                 Delete
               </button>
@@ -187,17 +187,17 @@ export default function EditorPane({
               onMouseDown={(e) => e.preventDefault()} // keep the textarea's selection
               onClick={startAddComment}
               title="Comment on the selected text"
-              className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+              className="rounded border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface"
             >
               Comment
             </button>
           )}
-          {modified && <span className="text-xs text-amber-400">unsaved changes</span>}
+          {modified && <span className="text-xs text-accent">unsaved changes</span>}
           {savedFlash && !modified && <span className="text-xs text-emerald-400">saved ✓</span>}
           <button
             disabled={!modified}
             onClick={save}
-            className="rounded bg-amber-700 px-4 py-1.5 text-sm font-medium text-amber-50 transition hover:bg-amber-600 disabled:opacity-40"
+            className="rounded bg-accent px-4 py-1.5 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-40"
           >
             Save
           </button>
@@ -209,10 +209,10 @@ export default function EditorPane({
         </p>
       )}
       {isFolder ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-stone-500">
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-ink-faint">
           <span className="text-3xl">📁</span>
           <p>
-            <span className="text-stone-300">{node.title || '(untitled)'}</span> is a folder ·{' '}
+            <span className="text-ink-soft">{node.title || '(untitled)'}</span> is a folder ·{' '}
             {node.children.length} item{node.children.length === 1 ? '' : 's'}
           </p>
           <p className="text-sm">Edit its title above, or use “Add document” to create one inside it.</p>
@@ -231,12 +231,12 @@ export default function EditorPane({
             }
             onBlur={save}
             spellCheck
-            className="min-h-0 flex-1 resize-none bg-stone-900 p-4 font-serif text-base leading-relaxed text-stone-100 outline-none"
+            className="min-h-0 flex-1 resize-none bg-canvas p-4 font-serif text-base leading-relaxed text-ink outline-none"
             placeholder="This document is empty. Start typing…"
           />
           {(comments.length > 0 || commentDraft) && (
-            <div className="max-h-52 shrink-0 overflow-y-auto border-t border-stone-800 bg-stone-950/60">
-              <p className="px-4 pt-2 text-xs font-medium uppercase tracking-wide text-stone-500">
+            <div className="max-h-52 shrink-0 overflow-y-auto border-t border-edge bg-panel/60">
+              <p className="px-4 pt-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
                 Comments ({comments.length})
               </p>
               {commentDraft && (
@@ -250,17 +250,17 @@ export default function EditorPane({
                       else if (e.key === 'Escape') cancelComment()
                     }}
                     placeholder={commentDraft.mode === 'add' ? 'New comment…' : 'Edit comment…'}
-                    className="min-w-0 flex-1 rounded bg-stone-800 px-2 py-1 text-sm text-stone-100 outline-none focus:ring-1 focus:ring-amber-600"
+                    className="min-w-0 flex-1 rounded bg-surface px-2 py-1 text-sm text-ink outline-none focus:ring-1 focus:ring-accent"
                   />
                   <button
                     onClick={submitComment}
-                    className="shrink-0 rounded bg-amber-700 px-3 py-1 text-sm font-medium text-amber-50 hover:bg-amber-600"
+                    className="shrink-0 rounded bg-accent px-3 py-1 text-sm font-medium text-on-accent hover:bg-accent-hover"
                   >
                     {commentDraft.mode === 'add' ? 'Add' : 'Save'}
                   </button>
                   <button
                     onClick={cancelComment}
-                    className="shrink-0 rounded px-2 py-1 text-sm text-stone-400 hover:bg-stone-800"
+                    className="shrink-0 rounded px-2 py-1 text-sm text-ink-soft hover:bg-surface"
                   >
                     Cancel
                   </button>
@@ -279,24 +279,24 @@ export default function EditorPane({
                     className="min-w-0 flex-1 text-left disabled:cursor-default"
                   >
                     {c.anchorText && (
-                      <span className="block truncate text-xs italic text-amber-300/80">
+                      <span className="block truncate text-xs italic text-accent">
                         “{c.anchorText}”
                       </span>
                     )}
-                    <span className="block whitespace-pre-wrap break-words text-stone-300">
+                    <span className="block whitespace-pre-wrap break-words text-ink-soft">
                       {c.text || '(empty)'}
                     </span>
                   </button>
                   <button
                     onClick={() => startEditComment(c.id, c.text)}
-                    className="shrink-0 text-xs text-stone-500 hover:text-amber-400"
+                    className="shrink-0 text-xs text-ink-faint hover:text-accent"
                   >
                     Edit
                   </button>
                   <button
                     aria-label="Delete comment"
                     onClick={() => onDeleteComment(c.id)}
-                    className="shrink-0 text-xs text-stone-500 hover:text-red-400"
+                    className="shrink-0 text-xs text-ink-faint hover:text-red-400"
                   >
                     Delete
                   </button>
@@ -304,7 +304,7 @@ export default function EditorPane({
               ))}
             </div>
           )}
-          <p className="border-t border-stone-800 px-4 py-1.5 text-xs text-stone-600">
+          <p className="border-t border-edge px-4 py-1.5 text-xs text-ink-faint">
             Plain-text editing: formatting outside your edits is preserved byte-for-byte;
             select text and hit Comment to annotate.
           </p>

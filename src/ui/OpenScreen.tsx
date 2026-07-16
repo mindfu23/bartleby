@@ -4,6 +4,7 @@ import { importZip, importFileList } from '../app/zipio'
 import { supportsDirectAccess, pickProjectDirectory, readProject } from '../app/fsio'
 import type { RecoveryRecord } from '../app/recovery'
 import DropboxDialog from './DropboxDialog'
+import SettingsDialog from './SettingsDialog'
 
 interface Props {
   onOpen: (session: ProjectSession, dirHandle: FileSystemDirectoryHandle | null) => void
@@ -25,6 +26,7 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
   const [busy, setBusy] = useState(false)
   const [choices, setChoices] = useState<FileSystemDirectoryHandle[] | null>(null)
   const [showDropbox, setShowDropbox] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const direct = supportsDirectAccess()
 
   const openFrom = async (
@@ -59,33 +61,41 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 bg-stone-900 px-6 text-stone-200">
+    <div className="relative flex h-full flex-col items-center justify-center gap-6 bg-canvas px-6 text-ink">
+      <button
+        onClick={() => setShowSettings(true)}
+        aria-label="Settings"
+        title="Settings"
+        className="absolute right-3 top-3 rounded-full p-2 text-xl text-ink-soft hover:bg-surface"
+      >
+        ⚙
+      </button>
       <div className="text-center">
-        <h1 className="font-serif text-5xl text-amber-100">Bartleby</h1>
-        <p className="mt-2 max-w-md text-stone-400">
+        <h1 className="font-serif text-5xl text-accent">Bartleby</h1>
+        <p className="mt-2 max-w-md text-ink-soft">
           Open a Scrivener 3 project, browse the binder, edit document text, and
           save your changes back — with a backup made first.
         </p>
       </div>
 
       {recovery && (
-        <div className="flex w-full max-w-sm flex-col gap-2 rounded-lg border border-amber-800 bg-amber-950/40 p-4">
-          <p className="text-sm text-amber-100">
+        <div className="flex w-full max-w-sm flex-col gap-2 rounded-lg border border-accent bg-accent-soft p-4">
+          <p className="text-sm text-accent">
             Continue where you left off — <span className="font-medium">{recovery.projectName}.scriv</span>
           </p>
-          <p className="text-xs text-stone-400">
+          <p className="text-xs text-ink-soft">
             Auto-saved backup in this browser · {new Date(recovery.savedAt).toLocaleString()}
           </p>
           <div className="mt-1 flex gap-2">
             <button
               onClick={onRestore}
-              className="rounded bg-amber-700 px-4 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-600"
+              className="rounded bg-accent px-4 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
             >
               Restore
             </button>
             <button
               onClick={onDiscard}
-              className="rounded px-3 py-1.5 text-sm text-stone-400 hover:bg-stone-800"
+              className="rounded px-3 py-1.5 text-sm text-ink-soft hover:bg-surface"
             >
               Discard
             </button>
@@ -111,14 +121,14 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
               folderRef.current?.click()
             }
           }}
-          className="rounded-lg bg-amber-700 px-5 py-3 font-medium text-amber-50 transition hover:bg-amber-600 disabled:opacity-50"
+          className="rounded-lg bg-accent px-5 py-3 font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-50"
         >
           Open a .scriv project folder
         </button>
         <button
           disabled={busy}
           onClick={() => zipRef.current?.click()}
-          className="rounded-lg border border-stone-600 px-5 py-3 font-medium text-stone-200 transition hover:bg-stone-800 disabled:opacity-50"
+          className="rounded-lg border border-edge px-5 py-3 font-medium text-ink transition hover:bg-surface disabled:opacity-50"
         >
           Open a project or .zip (copy)
         </button>
@@ -129,12 +139,14 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
         >
           Open from Dropbox (beta)
         </button>
-        <p className="text-center text-xs text-stone-500">
+        <p className="text-center text-xs text-ink-faint">
           {direct
             ? 'Folder mode saves changes straight back into the project — on macOS, pick the folder that CONTAINS your .scriv. The other button opens a .scriv or .zip as a copy (edit + export a new copy; the original isn’t touched).'
             : 'This browser can’t write to folders — open a .scriv or .zip and export an edited copy. On phones, zip the .scriv folder first.'}
         </p>
       </div>
+
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
       {showDropbox && (
         <DropboxDialog
@@ -148,9 +160,9 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
 
       {choices && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-6">
-          <div className="flex max-h-[80vh] w-full max-w-sm flex-col rounded-lg border border-stone-700 bg-stone-900 p-4">
-            <h2 className="mb-1 font-medium text-amber-100">Choose a project</h2>
-            <p className="mb-3 text-xs text-stone-400">
+          <div className="flex max-h-[80vh] w-full max-w-sm flex-col rounded-lg border border-edge bg-canvas p-4">
+            <h2 className="mb-1 font-medium text-accent">Choose a project</h2>
+            <p className="mb-3 text-xs text-ink-soft">
               {choices.length} Scrivener projects in that folder. Which one?
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -158,7 +170,7 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
                 <button
                   key={h.name}
                   onClick={() => chooseProject(h)}
-                  className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-stone-200 hover:bg-stone-800"
+                  className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-ink hover:bg-surface"
                 >
                   <span className="shrink-0">📖</span>
                   <span className="truncate">{h.name}</span>
@@ -167,7 +179,7 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
             </div>
             <button
               onClick={() => setChoices(null)}
-              className="mt-3 self-end rounded px-3 py-1.5 text-sm text-stone-400 hover:bg-stone-800"
+              className="mt-3 self-end rounded px-3 py-1.5 text-sm text-ink-soft hover:bg-surface"
             >
               Cancel
             </button>
@@ -175,7 +187,7 @@ export default function OpenScreen({ onOpen, onOpenDropbox, recovery, onRestore,
         </div>
       )}
 
-      {busy && <p className="text-sm text-stone-400">Reading project…</p>}
+      {busy && <p className="text-sm text-ink-soft">Reading project…</p>}
       {error && (
         <p className="max-w-md rounded-md border border-red-800 bg-red-950 px-4 py-2 text-center text-sm text-red-300">
           {error}

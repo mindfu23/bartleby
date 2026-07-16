@@ -19,6 +19,8 @@ import BinderTree, { isFolderType } from './ui/BinderTree'
 import EditorPane from './ui/EditorPane'
 import AddDocumentDialog from './ui/AddDocumentDialog'
 import MoveDialog from './ui/MoveDialog'
+import SettingsDialog from './ui/SettingsDialog'
+import InsightsPanel from './ui/InsightsPanel'
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -35,7 +37,10 @@ export default function App() {
   const [backupDone, setBackupDone] = useState(false)
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
   const [selected, setSelected] = useState<BinderNode | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Mobile app-shell tab (bottom nav). Desktop keeps the two-pane layout and
+  // ignores this. 'write' = editor, 'outline' = binder, 'insights' = stats.
+  const [mobileTab, setMobileTab] = useState<'outline' | 'write' | 'insights'>('outline')
+  const [showSettings, setShowSettings] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [showMove, setShowMove] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -132,7 +137,8 @@ export default function App() {
 
   const selectNode = (node: BinderNode) => {
     setSelected(node)
-    setSidebarOpen(false)
+    // On mobile, picking an item in Outline jumps to the Write tab.
+    if (!isFolderType(node.type)) setMobileTab('write')
   }
 
   const findByUuid = (uuid: string): BinderNode | null => {
@@ -428,23 +434,24 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-x-hidden bg-stone-900">
-      <header className="flex flex-wrap items-center gap-2 border-b border-stone-800 px-3 py-2">
-        <button
-          aria-label="Toggle binder"
-          className="rounded p-2 text-stone-300 hover:bg-stone-800 md:hidden"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-        >
-          ☰
-        </button>
-        <span className="font-serif text-lg text-amber-100">Bartleby</span>
-        <span className="truncate text-sm text-stone-400">
+    <div className="flex h-full flex-col overflow-x-hidden bg-canvas">
+      <header className="flex flex-wrap items-center gap-2 border-b border-edge px-3 py-2">
+        <span className="font-serif text-lg text-accent">Bartleby</span>
+        <span className="truncate text-sm text-ink-soft">
           {session.projectName}.scriv
           {session.isDirty() && (
-            <span className="ml-2 text-xs text-amber-400">● unexported changes</span>
+            <span className="ml-2 text-xs text-accent">● unexported changes</span>
           )}
         </span>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            aria-label="Settings"
+            title="Settings"
+            className="rounded-full p-2 text-lg text-ink-soft hover:bg-surface"
+          >
+            ⚙
+          </button>
           {saveStatus && (
             <span
               className={`text-xs ${saveStatus.startsWith('Save failed') ? 'text-red-400' : 'text-emerald-400'}`}
@@ -454,7 +461,7 @@ export default function App() {
           )}
           <button
             onClick={() => setShowAdd(true)}
-            className="rounded border border-stone-700 px-3 py-1.5 text-sm text-stone-200 hover:bg-stone-800"
+            className="rounded border border-edge px-3 py-1.5 text-sm text-ink hover:bg-surface"
           >
             Add document
           </button>
@@ -462,7 +469,7 @@ export default function App() {
             <button
               onClick={saveToFolder}
               disabled={!session.isDirty()}
-              className="rounded bg-amber-700 px-3 py-1.5 text-sm font-medium text-amber-50 hover:bg-amber-600 disabled:opacity-40"
+              className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-40"
             >
               Save to project folder
             </button>
@@ -481,8 +488,8 @@ export default function App() {
             title={session.isDirty() ? 'You have changes to export' : undefined}
             className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
               dirHandle && !session.isDirty()
-                ? 'border border-stone-700 text-stone-200 hover:bg-stone-800'
-                : 'bg-amber-700 text-amber-50 hover:bg-amber-600'
+                ? 'border border-edge text-ink hover:bg-surface'
+                : 'bg-accent text-on-accent hover:bg-accent-hover'
             }`}
           >
             {exporting
@@ -491,7 +498,7 @@ export default function App() {
           </button>
           <button
             onClick={closeProject}
-            className="rounded px-3 py-1.5 text-sm text-stone-400 hover:bg-stone-800"
+            className="hidden rounded px-3 py-1.5 text-sm text-ink-soft hover:bg-surface md:inline-block"
           >
             Close
           </button>
@@ -499,11 +506,8 @@ export default function App() {
       </header>
 
       <div className="relative flex min-h-0 flex-1">
-        <aside
-          className={`absolute inset-y-0 left-0 z-10 w-72 border-r border-stone-800 bg-stone-950 transition-transform md:static md:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
+        {/* Desktop binder — always visible in the two-pane layout. */}
+        <aside className="hidden w-72 shrink-0 overflow-y-auto border-r border-edge bg-panel md:block">
           <BinderTree
             roots={session.binderTree()}
             selected={selected?.uuid ?? null}
@@ -512,27 +516,73 @@ export default function App() {
             onMove={moveItem}
           />
         </aside>
-        {sidebarOpen && (
+
+        <main className="relative min-w-0 flex-1">
+          {/* Editor: shown on desktop always; on mobile only for the Write tab.
+              Kept mounted so an in-progress edit survives tab switches. */}
+          <div className={`h-full ${mobileTab === 'write' ? 'block' : 'hidden'} md:block`}>
+            <EditorPane
+              node={selected}
+              text={selected && !isFolderType(selected.type) ? session.readDoc(selected.uuid) : ''}
+              comments={selected && !isFolderType(selected.type) ? session.getComments(selected.uuid) : []}
+              onSave={saveEdit}
+              onRename={renameItem}
+              onAddComment={addComment}
+              onEditComment={editComment}
+              onDeleteComment={deleteComment}
+              onMoveRequest={() => setShowMove(true)}
+              onTrash={trashSelected}
+            />
+          </div>
+
+          {/* Mobile Outline tab — the binder full-width. */}
           <div
-            className="absolute inset-0 z-[5] bg-black/50 md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-        <main className="min-w-0 flex-1">
-          <EditorPane
-            node={selected}
-            text={selected && !isFolderType(selected.type) ? session.readDoc(selected.uuid) : ''}
-            comments={selected && !isFolderType(selected.type) ? session.getComments(selected.uuid) : []}
-            onSave={saveEdit}
-            onRename={renameItem}
-            onAddComment={addComment}
-            onEditComment={editComment}
-            onDeleteComment={deleteComment}
-            onMoveRequest={() => setShowMove(true)}
-            onTrash={trashSelected}
-          />
+            className={`h-full overflow-y-auto ${mobileTab === 'outline' ? 'block' : 'hidden'} md:hidden`}
+          >
+            <BinderTree
+              roots={session.binderTree()}
+              selected={selected?.uuid ?? null}
+              isDirty={(uuid) => session.isDirty(uuid)}
+              onSelect={selectNode}
+              onMove={moveItem}
+            />
+          </div>
+
+          {/* Mobile Insights tab — mounted only when active. */}
+          {mobileTab === 'insights' && (
+            <div className="h-full overflow-y-auto md:hidden">
+              <InsightsPanel session={session} version={version} />
+            </div>
+          )}
         </main>
       </div>
+
+      {/* Bottom navigation — mobile app shell (Figma). Desktop uses the two-pane layout. */}
+      <nav className="flex shrink-0 border-t border-edge bg-panel text-ink-soft md:hidden">
+        {[
+          { key: 'home', label: 'Home', icon: '📚', onClick: closeProject },
+          { key: 'outline', label: 'Outline', icon: '≡', onClick: () => setMobileTab('outline') },
+          { key: 'write', label: 'Write', icon: '✎', onClick: () => setMobileTab('write') },
+          { key: 'insights', label: 'Insights', icon: '📊', onClick: () => setMobileTab('insights') },
+        ].map((tab) => {
+          const active = tab.key === mobileTab
+          return (
+            <button
+              key={tab.key}
+              onClick={tab.onClick}
+              aria-current={active ? 'page' : undefined}
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${
+                active ? 'text-accent' : 'hover:text-ink'
+              }`}
+            >
+              <span className="text-base leading-none">{tab.icon}</span>
+              {tab.label}
+            </button>
+          )
+        })}
+      </nav>
+
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
 
       {showAdd && (
         <AddDocumentDialog
@@ -558,17 +608,17 @@ export default function App() {
           onClick={() => setShowDbxSave(false)}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-stone-700 bg-stone-900 p-5"
+            className="w-full max-w-md rounded-xl border border-edge bg-canvas p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-medium text-stone-100">Save to Dropbox</h3>
-            <p className="mt-1 text-xs text-stone-500">{basename(dropbox.scrivPath)}</p>
+            <h3 className="text-lg font-medium text-ink">Save to Dropbox</h3>
+            <p className="mt-1 text-xs text-ink-faint">{basename(dropbox.scrivPath)}</p>
             <button
               onClick={saveDropboxCopy}
-              className="mt-4 w-full rounded-lg border border-stone-700 px-4 py-3 text-left hover:bg-stone-800"
+              className="mt-4 w-full rounded-lg border border-edge px-4 py-3 text-left hover:bg-surface"
             >
-              <div className="text-sm font-medium text-stone-100">Save a copy (safe)</div>
-              <div className="text-xs text-stone-400">
+              <div className="text-sm font-medium text-ink">Save a copy (safe)</div>
+              <div className="text-xs text-ink-soft">
                 Writes {basename(bartlebyCopyPath(dropbox.scrivPath))} — your original is never touched.
               </div>
             </button>
@@ -577,13 +627,13 @@ export default function App() {
               className="mt-2 w-full rounded-lg border border-sky-800 bg-sky-950/40 px-4 py-3 text-left hover:bg-sky-900/40"
             >
               <div className="text-sm font-medium text-sky-100">Save in place (overwrite original)</div>
-              <div className="text-xs text-stone-400">
+              <div className="text-xs text-ink-soft">
                 Backs up the original once, checks for changes made elsewhere (→ conflict copy if so), then overwrites.
               </div>
             </button>
             <button
               onClick={() => setShowDbxSave(false)}
-              className="mt-4 w-full rounded px-3 py-1.5 text-sm text-stone-400 hover:bg-stone-800"
+              className="mt-4 w-full rounded px-3 py-1.5 text-sm text-ink-soft hover:bg-surface"
             >
               Cancel
             </button>

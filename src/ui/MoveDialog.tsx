@@ -53,18 +53,18 @@ export default function MoveDialog({ roots, node, onMove, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-xl border border-stone-700 bg-stone-900 p-5 shadow-2xl"
+        className="w-full max-w-md rounded-xl border border-edge bg-canvas p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-medium text-stone-100">
-          Move <span className="text-amber-200">{node.title || '(untitled)'}</span>
+        <h3 className="text-lg font-medium text-ink">
+          Move <span className="text-accent">{node.title || '(untitled)'}</span>
         </h3>
-        <label className="mt-4 block text-sm text-stone-400">
+        <label className="mt-4 block text-sm text-ink-soft">
           Into
           <select
             value={dest}
             onChange={(e) => setDest(e.target.value)}
-            className="mt-1 w-full rounded border border-stone-700 bg-stone-800 px-3 py-2 text-stone-100 outline-none focus:border-amber-600"
+            className="mt-1 w-full rounded border border-edge bg-surface px-3 py-2 text-ink outline-none focus:border-accent"
           >
             <option value="">Binder root</option>
             {folders.map((f) => (
@@ -74,7 +74,7 @@ export default function MoveDialog({ roots, node, onMove, onClose }: Props) {
             ))}
           </select>
         </label>
-        <fieldset className="mt-3 flex gap-4 text-sm text-stone-300">
+        <fieldset className="mt-3 flex gap-4 text-sm text-ink-soft">
           <label className="flex items-center gap-1.5">
             <input type="radio" checked={position === 'top'} onChange={() => setPosition('top')} /> Top
           </label>
@@ -89,12 +89,12 @@ export default function MoveDialog({ roots, node, onMove, onClose }: Props) {
         </fieldset>
         {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded px-4 py-2 text-sm text-stone-300 hover:bg-stone-800">
+          <button onClick={onClose} className="rounded px-4 py-2 text-sm text-ink-soft hover:bg-surface">
             Cancel
           </button>
           <button
             onClick={submit}
-            className="rounded bg-amber-700 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-600"
+            className="rounded bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
           >
             Move
           </button>

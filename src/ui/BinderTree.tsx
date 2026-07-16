@@ -86,22 +86,22 @@ function NodeRow({
           dnd.end()
         }}
         className={`relative flex cursor-pointer items-center gap-1.5 rounded px-2 py-1.5 text-sm ${
-          isSelected ? 'bg-amber-800/40 text-amber-100' : 'text-stone-300 hover:bg-stone-800'
+          isSelected ? 'bg-accent-soft text-accent' : 'text-ink-soft hover:bg-surface'
         } ${dnd.dragging === node.uuid ? 'opacity-40' : ''} ${
-          drop === 'inside' ? 'bg-amber-800/20 ring-1 ring-amber-500' : ''
+          drop === 'inside' ? 'bg-accent-soft ring-1 ring-accent' : ''
         }`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={() => onSelect(node)}
       >
         {drop === 'before' && (
-          <span className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded bg-amber-400" />
+          <span className="pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded bg-accent" />
         )}
         {drop === 'after' && (
-          <span className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded bg-amber-400" />
+          <span className="pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded bg-accent" />
         )}
         <button
           aria-label={open ? 'Collapse' : 'Expand'}
-          className={`w-4 shrink-0 text-stone-500 ${hasKids ? '' : 'invisible'}`}
+          className={`w-4 shrink-0 text-ink-faint ${hasKids ? '' : 'invisible'}`}
           onClick={(e) => {
             e.stopPropagation()
             setOpen(!open)
@@ -111,7 +111,7 @@ function NodeRow({
         </button>
         <span className="shrink-0">{folder ? '📁' : '📄'}</span>
         <span className="truncate">{node.title || '(untitled)'}</span>
-        {isDirty(node.uuid) && <span className="ml-auto shrink-0 text-amber-400">●</span>}
+        {isDirty(node.uuid) && <span className="ml-auto shrink-0 text-accent">●</span>}
       </div>
       {open &&
         node.children.map((child) => (
