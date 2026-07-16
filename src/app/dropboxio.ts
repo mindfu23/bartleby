@@ -44,6 +44,36 @@ export const bartlebyCopyPath = (p: string) => siblingPath(p, '-bartleby')
 export const conflictCopyPath = (p: string) => siblingPath(p, ' (Bartleby conflict)')
 export const backupCopyPath = (p: string) => siblingPath(p, ' (Bartleby backup)')
 
+/**
+ * Is the project currently open in Scrivener? Scrivener writes `Files/user.lock`
+ * while a project is open, so a lock in the server listing means saving now
+ * risks racing Scrivener's own next save. Read from hashes we already fetch —
+ * no extra request. A crash can leave the lock stale, so warn, never block.
+ */
+export function isLockedByScrivener(hashes: Map<string, string>): boolean {
+  for (const p of hashes.keys()) if (/\/files\/user\.lock$/.test(p)) return true
+  return false
+}
+
+/**
+ * UUIDs of documents whose content changed between two hash maps (lowercased —
+ * Dropbox `path_lower` keys are). Project-level files (.scrivx, docs.checksum,
+ * search.indexes, user.lock) are ignored on purpose: Scrivener rewrites them on
+ * every save, so including them would report a conflict for every document.
+ */
+export function changedDocUuids(
+  base: Map<string, string>,
+  current: Map<string, string>,
+): Set<string> {
+  const out = new Set<string>()
+  for (const p of new Set([...base.keys(), ...current.keys()])) {
+    if (base.get(p) === current.get(p)) continue
+    const m = /\/files\/data\/([^/]+)\/content\.[a-z0-9]+$/.exec(p)
+    if (m) out.add(m[1].toLowerCase())
+  }
+  return out
+}
+
 /** Do two path→content-hash maps describe the same folder state? */
 export function hashesEqual(a: Map<string, string>, b: Map<string, string>): boolean {
   if (a.size !== b.size) return false

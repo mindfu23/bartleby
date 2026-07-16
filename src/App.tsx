@@ -13,6 +13,9 @@ import {
   conflictCopyPath,
   backupCopyPath,
   packageBaseName,
+  isLockedByScrivener,
+  changedDocUuids,
+  downloadProject,
   DropboxError,
 } from './app/dropboxio'
 import { getAccessToken, DropboxAuthError } from './app/dropboxauth'
@@ -23,6 +26,22 @@ import AddDocumentDialog from './ui/AddDocumentDialog'
 import MoveDialog from './ui/MoveDialog'
 import SettingsDialog from './ui/SettingsDialog'
 import InsightsPanel from './ui/InsightsPanel'
+
+/** Titles of the binder items with these (lowercased) uuids. Items Scrivener
+ *  added since we opened aren't in our binder, so they simply won't match —
+ *  callers report the remainder as a count. */
+function titlesFor(session: ProjectSession, uuids: Set<string>): string[] {
+  if (uuids.size === 0) return []
+  const titles: string[] = []
+  const walk = (nodes: BinderNode[]) => {
+    for (const n of nodes) {
+      if (uuids.has(n.uuid.toLowerCase())) titles.push(n.title || '(untitled)')
+      walk(n.children)
+    }
+  }
+  walk(session.binderTree())
+  return titles
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
@@ -55,6 +74,15 @@ export default function App() {
     base: Map<string, string>
   } | null>(null)
   const [showDbxSave, setShowDbxSave] = useState(false)
+  // What the server looks like right now vs when we opened. Refreshed on
+  // resume/focus + a slow timer, so divergence surfaces while there's still a
+  // cheap decision to make — not an hour later at save time.
+  const [remote, setRemote] = useState<{
+    changed: boolean
+    locked: boolean
+    docs: string[]
+    extra: number
+  }>({ changed: false, locked: false, docs: [], extra: 0 })
   // bump to re-render after session mutations (session is a mutable class instance)
   const [version, setVersion] = useState(0)
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
@@ -73,6 +101,41 @@ export default function App() {
     }, 2000)
     return () => clearTimeout(t)
   }, [session, version])
+
+  // Watch Dropbox for changes made elsewhere (e.g. Scrivener on the desktop)
+  // while this project is open. Only while visible, so a backgrounded phone
+  // isn't burning battery/data; the save-time check stays authoritative.
+  useEffect(() => {
+    if (!session || !dropbox) return
+    let cancelled = false
+    const check = async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const current = await projectHashes(await getAccessToken(), dropbox.scrivPath)
+        if (cancelled) return
+        const changed = !hashesEqual(current, dropbox.base)
+        const uuids = changed ? changedDocUuids(dropbox.base, current) : new Set<string>()
+        const docs = titlesFor(session, uuids)
+        setRemote({
+          changed,
+          locked: isLockedByScrivener(current),
+          docs,
+          extra: Math.max(0, uuids.size - docs.length),
+        })
+      } catch {
+        // offline / transient — say nothing; the save path re-checks anyway
+      }
+    }
+    void check()
+    const onVis = () => void check()
+    const id = setInterval(() => void check(), 60_000)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [session, dropbox, version])
 
   // Flush to recovery when the tab is hidden/backgrounded (the reliable
   // "save on close" hook — async writes can't be trusted during teardown).
@@ -406,7 +469,17 @@ export default function App() {
         const dest = conflictCopyPath(dropbox.scrivPath)
         setSaveStatus('Changed elsewhere — writing a conflict copy…')
         await uploadProject(token, dest, session.exportFiles(packageBaseName(dest)))
-        setSaveStatus(`⚠ Project changed on another device — saved to ${basename(dest)}; original untouched.`)
+        const uuids = changedDocUuids(dropbox.base, current)
+        const names = titlesFor(session, uuids)
+        const extra = Math.max(0, uuids.size - names.length)
+        const what = [
+          ...names.map((n) => `“${n}”`),
+          ...(extra ? [`${extra} new/unknown document${extra === 1 ? '' : 's'}`] : []),
+        ]
+        setSaveStatus(
+          `⚠ Changed elsewhere${what.length ? ` (${what.join(', ')})` : ''} — your version saved to ` +
+            `${basename(dest)}; the original is untouched.`,
+        )
         return
       }
       if (!backupDone) {
@@ -422,6 +495,43 @@ export default function App() {
       )
       setDropbox({ ...dropbox, base: await projectHashes(token, dropbox.scrivPath) })
       afterDropboxSave('Saved in place to Dropbox ✓')
+    } catch (e) {
+      setSaveStatus(dropboxErr(e))
+    }
+  }
+
+  /** Human-readable summary of what changed in Dropbox. */
+  const describeRemote = (): string => {
+    const names = remote.docs.map((d) => `“${d}”`)
+    if (remote.extra > 0) names.push(`${remote.extra} new/unknown document${remote.extra === 1 ? '' : 's'}`)
+    return names.length ? names.join(', ') : 'project settings or structure'
+  }
+
+  /** Throw away the local session and take the server's current version. */
+  const reloadFromDropbox = async () => {
+    if (!dropbox) return
+    if (
+      session.isDirty() &&
+      !window.confirm(
+        'Reload the latest version from Dropbox?\n\n' +
+          'Your unsaved Bartleby changes will be LOST. To keep them, cancel and use ' +
+          '“Save to Dropbox → Save a copy” first.',
+      )
+    ) {
+      return
+    }
+    setSaveStatus('Reloading from Dropbox…')
+    try {
+      const { files, hashes } = await downloadProject(await getAccessToken(), dropbox.scrivPath)
+      setSession(ProjectSession.open(files))
+      setDropbox({ ...dropbox, base: hashes })
+      setSelected(null)
+      setBackupDone(false)
+      setRemote({ changed: false, locked: isLockedByScrivener(hashes), docs: [], extra: 0 })
+      void clearRecovery()
+      setRecovery(null)
+      setSaveStatus('Reloaded the latest version ✓')
+      setTimeout(() => setSaveStatus(null), 4000)
     } catch (e) {
       setSaveStatus(dropboxErr(e))
     }
@@ -514,6 +624,33 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {dropbox && (remote.changed || remote.locked) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-700/50 bg-amber-950/40 px-3 py-2 text-xs text-amber-100">
+          {remote.changed ? (
+            <span>
+              ⚠ Changed in Dropbox since you opened it — {describeRemote()}. Saving now would
+              write a separate copy instead of merging.
+            </span>
+          ) : (
+            <span>⚠ This project is open in Scrivener — close it there before saving.</span>
+          )}
+          {remote.changed && (
+            <button
+              onClick={reloadFromDropbox}
+              className="rounded border border-amber-600 px-2 py-0.5 font-medium hover:bg-amber-900/50"
+            >
+              Reload latest{session.isDirty() ? ' (discards my edits)' : ''}
+            </button>
+          )}
+          <button
+            onClick={() => setRemote({ ...remote, changed: false, locked: false })}
+            className="rounded px-2 py-0.5 text-amber-200/80 hover:bg-amber-900/50"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="relative flex min-h-0 flex-1">
         {/* Desktop binder — always visible in the two-pane layout. */}

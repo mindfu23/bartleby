@@ -9,6 +9,8 @@ import {
   uploadRank,
   packageBaseName,
   listScrivProjects,
+  isLockedByScrivener,
+  changedDocUuids,
 } from '../dropboxio'
 
 describe('dropboxio helpers', () => {
@@ -117,5 +119,56 @@ describe('listScrivProjects', () => {
     })
     await listScrivProjects('t', '/ebooks')
     expect(recursed).toBe(false)
+  })
+})
+
+const P = '/ebooks/novel.scriv'
+const doc = (uuid: string) => `${P}/files/data/${uuid}/content.rtf`
+
+describe('isLockedByScrivener', () => {
+  it('spots Scrivener’s open-project lock', () => {
+    expect(isLockedByScrivener(new Map([[`${P}/files/user.lock`, 'h']]))).toBe(true)
+  })
+  it('is false for a project nobody has open', () => {
+    expect(isLockedByScrivener(new Map([[doc('abc'), 'h']]))).toBe(false)
+  })
+})
+
+describe('changedDocUuids', () => {
+  it('reports documents whose content changed, added, or vanished', () => {
+    const base = new Map([[doc('aaa'), 'h1'], [doc('bbb'), 'h2']])
+    const now = new Map([[doc('aaa'), 'CHANGED'], [doc('ccc'), 'h3']])
+    // aaa edited, bbb deleted, ccc added — all three diverged.
+    expect(changedDocUuids(base, now)).toEqual(new Set(['aaa', 'bbb', 'ccc']))
+  })
+
+  it('ignores project files Scrivener rewrites on every save', () => {
+    // Otherwise EVERY save would look like a conflict in every document.
+    const base = new Map([
+      [`${P}/novel.scrivx`, 'a'],
+      [`${P}/files/data/docs.checksum`, 'a'],
+      [`${P}/files/search.indexes`, 'a'],
+      [`${P}/files/user.lock`, 'a'],
+      [doc('aaa'), 'same'],
+    ])
+    const now = new Map([
+      [`${P}/novel.scrivx`, 'CHANGED'],
+      [`${P}/files/data/docs.checksum`, 'CHANGED'],
+      [`${P}/files/search.indexes`, 'CHANGED'],
+      [`${P}/files/user.lock`, 'CHANGED'],
+      [doc('aaa'), 'same'],
+    ])
+    expect(changedDocUuids(base, now)).toEqual(new Set())
+  })
+
+  it('catches a changed comment sidecar too', () => {
+    const base = new Map([[`${P}/files/data/aaa/content.comments`, 'a']])
+    const now = new Map([[`${P}/files/data/aaa/content.comments`, 'b']])
+    expect(changedDocUuids(base, now)).toEqual(new Set(['aaa']))
+  })
+
+  it('sees no change when nothing moved', () => {
+    const m = new Map([[doc('aaa'), 'h1']])
+    expect(changedDocUuids(m, new Map(m))).toEqual(new Set())
   })
 })
