@@ -6,6 +6,7 @@ import { saveRecovery, loadRecovery, clearRecovery, type RecoveryRecord } from '
 import {
   uploadProject,
   saveProjectInPlace,
+  saveProjectDelta,
   projectHashes,
   hashesEqual,
   copyFolder,
@@ -463,22 +464,44 @@ export default function App() {
     setSaveStatus('Checking Dropbox for other changes…')
     try {
       const token = await getAccessToken()
-      // Conflict: did the project change on another device since we opened it?
+      // Did the project change on another device since we opened it?
       const current = await projectHashes(token, dropbox.scrivPath)
       if (!hashesEqual(current, dropbox.base)) {
+        const theirs = changedDocUuids(dropbox.base, current)
+        const ours = new Set(session.dirtyDocUuids().map((u) => u.toLowerCase()))
+        const collided = [...ours].filter((u) => theirs.has(u))
+
+        // Divergence isn't automatically a conflict. If they touched only
+        // documents we didn't, our edits can be rebased onto their newer
+        // version and both survive. Binder changes can't be rebased (their
+        // .scrivx may hold renames/moves we can't see), so those still fork.
+        if (collided.length === 0 && !session.hasBinderChanges()) {
+          if (!backupDone) {
+            setSaveStatus('Backing up the current Dropbox version first…')
+            await copyFolder(token, dropbox.scrivPath, backupCopyPath(dropbox.scrivPath))
+            setBackupDone(true)
+          }
+          setSaveStatus('Merging your changes into the newer Dropbox version…')
+          const { writes, deletes } = session.exportRebase()
+          await saveProjectDelta(token, dropbox.scrivPath, writes, deletes)
+          const names = titlesFor(session, theirs)
+          // Our in-memory copy still lacks THEIR edits, so take the merged
+          // result from the server — safe now that our work is saved.
+          await reloadAfterSave(
+            `Merged ✓ Your edits saved${names.length ? `; ${names.map((n) => `“${n}”`).join(', ')} updated from Scrivener` : ''}.`,
+          )
+          return
+        }
+
         const dest = conflictCopyPath(dropbox.scrivPath)
-        setSaveStatus('Changed elsewhere — writing a conflict copy…')
+        setSaveStatus('Same document changed in both places — writing a conflict copy…')
         await uploadProject(token, dest, session.exportFiles(packageBaseName(dest)))
-        const uuids = changedDocUuids(dropbox.base, current)
-        const names = titlesFor(session, uuids)
-        const extra = Math.max(0, uuids.size - names.length)
-        const what = [
-          ...names.map((n) => `“${n}”`),
-          ...(extra ? [`${extra} new/unknown document${extra === 1 ? '' : 's'}`] : []),
-        ]
+        const names = titlesFor(session, new Set(collided))
+        const why = session.hasBinderChanges()
+          ? 'the binder changed here and the project changed there'
+          : `also edited elsewhere: ${names.map((n) => `“${n}”`).join(', ') || 'a document'}`
         setSaveStatus(
-          `⚠ Changed elsewhere${what.length ? ` (${what.join(', ')})` : ''} — your version saved to ` +
-            `${basename(dest)}; the original is untouched.`,
+          `⚠ ${why} — your version saved to ${basename(dest)}; the original is untouched.`,
         )
         return
       }
@@ -505,6 +528,31 @@ export default function App() {
     const names = remote.docs.map((d) => `“${d}”`)
     if (remote.extra > 0) names.push(`${remote.extra} new/unknown document${remote.extra === 1 ? '' : 's'}`)
     return names.length ? names.join(', ') : 'project settings or structure'
+  }
+
+  /** Re-open from Dropbox after our work is safely written, so the session
+   *  reflects the merged result. Keeps the reader where they were. */
+  const reloadAfterSave = async (msg: string) => {
+    if (!dropbox) return
+    const keep = selected?.uuid ?? null
+    const { files, hashes } = await downloadProject(await getAccessToken(), dropbox.scrivPath)
+    const fresh = ProjectSession.open(files)
+    setSession(fresh)
+    setDropbox({ ...dropbox, base: hashes })
+    setRemote({ changed: false, locked: isLockedByScrivener(hashes), docs: [], extra: 0 })
+    const find = (nodes: BinderNode[]): BinderNode | null => {
+      for (const n of nodes) {
+        if (n.uuid === keep) return n
+        const hit = find(n.children)
+        if (hit) return hit
+      }
+      return null
+    }
+    setSelected(keep ? find(fresh.binderTree()) : null)
+    void clearRecovery()
+    setRecovery(null)
+    setSaveStatus(msg)
+    setTimeout(() => setSaveStatus(null), 8000)
   }
 
   /** Throw away the local session and take the server's current version. */

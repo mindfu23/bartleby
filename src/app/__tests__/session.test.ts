@@ -295,3 +295,68 @@ describe('.scrivx name normalization', () => {
     expect(s.exportDelta().deletes).toContain('Baseline.scrivx')
   })
 })
+
+/**
+ * Rebase merge: when the project changed underneath us but the other side
+ * touched DIFFERENT documents, write only our documents so both survive.
+ */
+describe('exportRebase', () => {
+  const dirtyText = () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.applyEdit(UUID_SCENE1, SCENE1_TEXT.replace('world', 'there'))
+    return s
+  }
+
+  it('writes only the documents we edited', () => {
+    const { writes } = dirtyText().exportRebase()
+    expect([...writes.keys()]).toContain(`Files/Data/${UUID_SCENE1}/content.rtf`)
+    // Someone else may have edited scene 2 — never touch it.
+    expect([...writes.keys()]).not.toContain(`Files/Data/${UUID_SCENE2}/content.rtf`)
+  })
+
+  it('never writes the .scrivx — the other side’s binder wins', () => {
+    // Ours is based on a stale base and would silently revert their renames/moves.
+    const { writes } = dirtyText().exportRebase()
+    expect([...writes.keys()].some((p) => p.endsWith('.scrivx'))).toBe(false)
+  })
+
+  it('deletes docs.checksum instead of writing a wrong one', () => {
+    // We can't recompute it over files we don't have; it's a cache, so Scrivener rebuilds.
+    const { deletes } = dirtyText().exportRebase()
+    expect(deletes).toContain('Files/Data/docs.checksum')
+  })
+
+  it('refuses when the binder changed, rather than dropping their structure', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.addDocument(UUID_DRAFT, 'New scene', '')
+    expect(() => s.exportRebase()).toThrow(/[Bb]inder changed/)
+  })
+})
+
+/**
+ * Regression: exportDelta wrote content.rtf but never the comment sidecar, so a
+ * folder-mode save left an anchor pointing at a comment body that didn't exist.
+ */
+describe('delta saves carry comment sidecars', () => {
+  it('writes content.comments alongside the text', () => {
+    const s = ProjectSession.open(fixtureFiles())
+    s.addComment(UUID_SCENE1, 0, 5, 'a note')
+    const { writes } = s.exportDelta()
+    expect([...writes.keys()]).toContain(`Files/Data/${UUID_SCENE1}/content.comments`)
+    expect([...writes.keys()]).toContain(`Files/Data/${UUID_SCENE1}/content.rtf`)
+  })
+
+  it('deletes the sidecar when the last comment goes away', () => {
+    // Start from a project that ALREADY has a comment, so the sidecar is part
+    // of what the server holds — otherwise there'd be nothing to delete.
+    const seed = ProjectSession.open(fixtureFiles(''))
+    const id = seed.addComment(UUID_SCENE1, 0, 5, 'a note')
+    const s = ProjectSession.open(seed.exportFiles())
+
+    s.deleteComment(UUID_SCENE1, id)
+    const { writes, deletes } = s.exportDelta()
+    const sidecar = `Files/Data/${UUID_SCENE1}/content.comments`
+    expect(writes.has(sidecar)).toBe(false)
+    expect(deletes).toContain(sidecar)
+  })
+})

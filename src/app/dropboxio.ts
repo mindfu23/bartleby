@@ -287,6 +287,29 @@ export async function copyFolder(token: string, from: string, to: string): Promi
  * Overwrite a project in place: ordered upload (content → scrivx → docs.checksum),
  * then delete server files no longer in the export (stale caches, removed docs).
  */
+/**
+ * Write a PARTIAL change-set into an existing project: uploads `writes`, then
+ * removes `deletes`. Unlike saveProjectInPlace this does NO orphan cleanup —
+ * every file we didn't write is another device's work and must survive. Used
+ * for the rebase merge, where most of the project is deliberately left alone.
+ */
+export async function saveProjectDelta(
+  token: string,
+  scrivPath: string,
+  writes: Map<string, Uint8Array>,
+  deletes: string[],
+): Promise<void> {
+  const ordered = [...writes.entries()].sort(([a], [b]) => uploadRank(a) - uploadRank(b))
+  for (const [rel, bytes] of ordered) await uploadOne(token, `${scrivPath}/${rel}`, bytes)
+  for (const rel of deletes) {
+    try {
+      await rpc(token, '/files/delete_v2', { path: `${scrivPath}/${rel}` })
+    } catch {
+      // already gone — a cache file we wanted removed anyway
+    }
+  }
+}
+
 export async function saveProjectInPlace(
   token: string,
   scrivPath: string,

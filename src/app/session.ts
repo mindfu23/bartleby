@@ -412,6 +412,61 @@ export class ProjectSession {
     return new Map(this.originalFiles)
   }
 
+  /** Has the binder itself changed (add/rename/move/trash), vs text only? */
+  hasBinderChanges(): boolean {
+    return this.binderDirty
+  }
+
+  /** Documents edited this session. */
+  dirtyDocUuids(): string[] {
+    return [...this.dirtyDocs]
+  }
+
+  /**
+   * Every file belonging to a document: its text and its comment sidecar. The
+   * sidecar can legitimately disappear (deleting the last comment removes it),
+   * so a caller must DELETE it, not merely skip it — writing content.rtf alone
+   * would leave a comment anchor pointing at a body that no longer exists.
+   */
+  private docWrites(uuids: Iterable<string>): {
+    writes: Map<string, Uint8Array>
+    deletes: string[]
+  } {
+    const writes = new Map<string, Uint8Array>()
+    const deletes: string[] = []
+    for (const uuid of uuids) {
+      for (const path of [this.docPath(uuid), this.commentsPath(uuid)]) {
+        const bytes = this.files.get(path)
+        if (bytes) writes.set(path, bytes)
+        else if (this.originalFiles.has(path)) deletes.push(path)
+      }
+    }
+    return { writes, deletes }
+  }
+
+  /**
+   * A merge-safe change-set for a project that changed underneath us (e.g.
+   * Scrivener saved to Dropbox while this session was open).
+   *
+   * Writes ONLY our edited documents, so the other side's edits to OTHER
+   * documents survive untouched — no conflict copy, no manual merge. Two things
+   * are deliberately not written:
+   *  - the `.scrivx`: theirs is newer and may hold renames/moves we can't see,
+   *    so we adopt it. Only valid because we made no binder changes — the
+   *    caller MUST check hasBinderChanges() first.
+   *  - `docs.checksum`: we can't recompute it over files we don't have. It's a
+   *    sync cache, not a load gate (proven), so deleting it is safe and
+   *    Scrivener rebuilds it. Same for the stale search index.
+   */
+  exportRebase(): { writes: Map<string, Uint8Array>; deletes: string[] } {
+    if (this.binderDirty) {
+      throw new SessionError('Binder changed — a rebase would drop the other side’s structure.')
+    }
+    const { writes, deletes } = this.docWrites(this.dirtyDocs)
+    deletes.push(DOCS_CHECKSUM_PATH, ...STRIP_ON_EXPORT)
+    return { writes, deletes }
+  }
+
   /**
    * Minimal change-set for saving directly back into the source folder:
    * dirty documents plus the freshened .scrivx, and the cache files to
@@ -419,16 +474,13 @@ export class ProjectSession {
    */
   exportDelta(): { writes: Map<string, Uint8Array>; deletes: string[] } {
     if (!this.isDirty()) return { writes: new Map(), deletes: [] }
-    const writes = new Map<string, Uint8Array>()
-    for (const uuid of this.dirtyDocs) {
-      const path = this.docPath(uuid)
-      writes.set(path, this.files.get(path)!)
-    }
+    const { writes, deletes: docDeletes } = this.docWrites(this.dirtyDocs)
     writes.set(this.scrivxPath, new TextEncoder().encode(updateProjectMeta(this.scrivxText)))
     // Regenerate docs.checksum over the current (post-edit) document bytes.
     writes.set(DOCS_CHECKSUM_PATH, buildDocsChecksum(this.files))
     // Clear any rival binder file, else Scrivener keeps asking to resolve it.
     const deletes = [
+      ...docDeletes,
       ...STRIP_ON_EXPORT.filter((p) => this.files.has(p)),
       ...this.staleScrivxPaths,
     ]
